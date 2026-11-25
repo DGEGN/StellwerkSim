@@ -49,3 +49,15 @@ const open = (il, s) => il.sig[s].aspect !== 'Hp0';
   for (const [gl, g] of Object.entries(data.config.gleise)) { assert(il.nodes[g.w] && il.nodes[g.e], 'Gleis ' + gl); }
 }
 console.log('OK – Engine');
+// 6. Rangierstraße / Mindestlänge
+{
+  const il = mk();
+  assert(!il.validTargets('s247').includes('s244') || il.validTargets('s247', 'rangier').includes('s244'));
+  assert(il.validTargets('s319', 'rangier').includes('s316'), 'Rangierstraße auch kurz');
+  assert(!il.validTargets('s319').includes('s316'), 'Zugstraße zu kurz');
+  assert(!il.request('s319', 's316').ok);
+  assert(il.request('s319', 's316', 'rangier').ok);
+  run(il, 15);
+  assert.equal(il.sig.s319.aspect, 'Sh1');
+}
+console.log('OK – Rangieren');
