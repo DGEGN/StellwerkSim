@@ -114,7 +114,7 @@ export class Betrieb {
   tick(dt) {
     const il = this.il;
     for (const t of il.trains.slice()) {
-      if (!t.kind) continue;
+      if (!t.kind || t.fp) continue;
       if (t.state === 'halt') { t.delay = (t.delay || 0) + dt; this.score.delay += dt / 60; }
       const at = this._node(t);
       const atFinal = at && FINAL.has(at) && (t.state === 'done' || t.state === 'halt');

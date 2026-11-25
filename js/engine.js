@@ -473,7 +473,7 @@ export class Interlocking {
         const front = N.dir === 'E' ? 'w' : 'e';
         if (cur.to.port === front) {
           const sg = this.sig[N.id];
-          if (!OPEN.has(sg.aspect)) { t.state = 'halt'; return; }
+          if (!OPEN.has(sg.aspect) || t.hold) { t.state = 'halt'; return; }
           t.state = 'run';
           const r = this.routeOf(N.id);
           if (r) r.passed = true;

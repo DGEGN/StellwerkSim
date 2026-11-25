@@ -1,12 +1,13 @@
 import { Interlocking } from './engine.js';
 import data from './data-skl.js';
 import { Betrieb, LEVELS, nextHop } from './betrieb.js';
+import { Fahrplanbetrieb, DAYS, fmtClock, FP_GLEISE } from './fahrplanbetrieb.js';
 
 const SY = 1.4, Y0 = 560;                       // vertikale Streckung des Plans
 const P = (x, y) => [x, Y0 + (y - Y0) * SY];
 const C = { free: '#4b5563', route: '#facc15', occ: '#ff3b30', bg: '#0b0f14', ye: '#facc15' };
 
-let il, ui, bt, numBuf = '';
+let il, ui, bt, fp, numBuf = '';
 let speed = 1;
 let windowSec = 5;
 const svg = document.getElementById('plan');
@@ -31,6 +32,7 @@ const HINTS = {
 function reset() {
   il = new Interlocking(data);
   bt = new Betrieb(il);
+  fp = new Fahrplanbetrieb(il);
   numBuf = '';
   ui = { start: null, startUntil: 0, pending: null, mode: null, dir: 'E', targets: [] };
   document.querySelectorAll('[data-mode],[data-key]').forEach(b => b.classList.remove('on', 'pend'));
@@ -166,17 +168,24 @@ function drawPanel() {
   });
   document.getElementById('routes').innerHTML = rs.length ? rs.join('') : '<span style="color:#8b98a8">keine</span>';
   const s = Math.floor(il.time);
-  document.getElementById('clock').textContent = `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`;
+  document.getElementById('clock').textContent = fp.active ? fmtClock(fp.clock) : `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`;
   document.querySelectorAll('[data-key]').forEach(b => b.classList.toggle('pend', !!ui.pending && ui.pending.key === b.dataset.key));
   document.querySelectorAll('[data-mode]').forEach(b => b.classList.toggle('on', ui.mode === b.dataset.mode));
   document.getElementById('btn-ausl').classList.toggle('on', il.ausleuchtung);
   document.getElementById('nstp-disp').textContent = numBuf.padEnd(4, '–');
-  document.getElementById('btn-betrieb').textContent = 'Betrieb: ' + LEVELS[bt.level].name;
-  document.getElementById('score').textContent = `✔ ${bt.score.ok} · ✖ ${bt.score.wrong} · Verspätung ${bt.score.delay.toFixed(1)} min`;
+  document.getElementById('btn-betrieb').textContent = 'Zufallsbetrieb: ' + LEVELS[bt.level].name;
+  document.getElementById('btn-fp').textContent = fp.active ? 'Tagesfahrplan beenden' : 'Tagesfahrplan starten';
+  const sc = fp.active ? fp.score : bt.score;
+  document.getElementById('score').textContent = `✔ ${sc.ok} · ✖ ${sc.wrong} · Verspätung ${sc.delay.toFixed(1)} min` + (fp.active ? ` · >5 min spät ${fp.score.late} · ausgefallen ${fp.score.missed}` : '');
+  document.getElementById('tafel').innerHTML = fp.active ? '<table>' + fp.tafel(8).map(r => `<tr class="${r.state}"><td>${r.dep}</td><td>${esc(r.label)}</td><td>${esc(r.dest)}</td><td>Gl ${esc(r.gl)}</td></tr>`).join('') + '</table>' : '';
   const zl = il.trains.filter(t => t.kind).map(t => {
     const nd = t.cur.kind === 'edge' ? il.nodes[t.cur.to.node] : null;
     let via = '';
     if (nd && nd.t === 'sig' && t.state === 'halt' && !il.sig[nd.id].route && nd.id !== t.dest) { const h = nextHop(il, nd.id, t.dest); if (h && h !== t.dest) via = ` · zuerst ${esc(il.nodes[h].name)}`; }
+    if (t.fp) {
+      const gl = FP_GLEISE[t.fp.gl].name;
+      return `<div><b>${esc(t.line)} ${t.no}</b> · Gl ${esc(gl)} · ${t.fp.stage === 'ein' ? 'Einfahrt' : 'ab ' + fmtClock(t.fp.dep).slice(0, 5)} → ${esc(il.nodes[t.dest].name)}${t.state === 'halt' ? (t.hold ? ' <span class="h">wartet auf Abfahrzeit</span>' : ' <span class="h">wartet</span>') : ''}${via}</div>`;
+    }
     return `<div><b>${t.no}</b> → ${esc(il.nodes[t.dest].name)}${t.state === 'halt' ? ' <span class="h">wartet</span>' : t.state === 'done' ? ' (Halt)' : ''}${via}</div>`;
   });
   document.getElementById('zugliste').innerHTML = zl.length ? zl.join('') : '–';
@@ -274,7 +283,14 @@ document.querySelectorAll('[data-num]').forEach(b => b.addEventListener('click',
   numBuf = v === 'C' ? '' : (numBuf + v).slice(0, 4);
   draw();
 }));
-document.getElementById('btn-betrieb').addEventListener('click', () => { bt.setLevel((bt.level + 1) % LEVELS.length); draw(); });
+document.getElementById('btn-betrieb').addEventListener('click', () => { if (fp.active) fp.stop(); bt.setLevel((bt.level + 1) % LEVELS.length); draw(); });
+const fpStart = document.getElementById('fp-start');
+for (let h = 0; h < 24; h++) fpStart.insertAdjacentHTML('beforeend', `<option value="${h * 60}"${h === 5 ? ' selected' : ''}>ab ${String(h).padStart(2, '0')}:00</option>`);
+document.getElementById('btn-fp').addEventListener('click', () => {
+  if (fp.active) fp.stop();
+  else { bt.setLevel(0); fp.start(document.getElementById('fp-day').value, +fpStart.value); }
+  draw();
+});
 document.getElementById('btn-bft').addEventListener('click', () => {
   const p = ui.pending;
   if (p && p.key === 'WSpT') il.laufketteSperren(true);
@@ -288,7 +304,7 @@ document.getElementById('btn-hut').addEventListener('click', () => { il.hupeAus(
 document.getElementById('btn-dir').addEventListener('click', () => { ui.dir = ui.dir === 'E' ? 'W' : 'E'; setBtnDir(); });
 document.getElementById('btn-reset').addEventListener('click', reset);
 document.getElementById('btn-help').addEventListener('click', () => document.getElementById('help').showModal());
-document.getElementById('btn-speed').addEventListener('click', e => { speed = speed === 1 ? 2 : speed === 2 ? 4 : 1; e.target.textContent = speed + '×'; });
+document.getElementById('btn-speed').addEventListener('click', e => { speed = speed === 1 ? 2 : speed === 2 ? 4 : speed === 4 ? 8 : speed === 8 ? 16 : 1; e.target.textContent = speed + '×'; });
 document.getElementById('btn-window').addEventListener('click', e => {
   windowSec = windowSec === 5 ? 10 : windowSec === 10 ? 0 : 5;
   e.target.textContent = windowSec ? `Zeitfenster ${windowSec} s` : 'Zeitfenster aus';
@@ -364,6 +380,7 @@ setInterval(() => {
   if (ui.start && ui.startUntil < t) { il.msg('Starttaste: Zeitfenster abgelaufen', 'warn'); clearPending(); }
   il.tick(dt);
   bt.tick(dt);
+  fp.tick(dt);
   draw();
 }, 250);
 
