@@ -58,3 +58,40 @@ button.pend { background:#a855f7; border-color:#a855f7; color:#fff; } button.pen
 .score{display:block;font-size:12px;color:#9fb0c3;margin:4px 0}
 .zugliste{font-size:12px;max-width:240px;max-height:70px;overflow:auto;line-height:1.5}
 .zugliste b{color:#e5e7eb}.zugliste .h{color:#f59e0b}
+
+/* ===== V4: Tischfelder nach Ril 482.9009 ===== */
+#plan{background:#e8eaed}
+#legend{color:#444}
+#panel{background:#3a3e44;border-top:2px solid #111}
+.keys{gap:6px}
+.group.tile{border:1px solid #111;border-radius:2px;padding:16px 8px 8px;gap:8px;align-items:flex-start}
+.t-blue{background:#6b7dc2}.t-green{background:#bfdc6a}.t-gray{background:#8f9399}
+.t-blue.g-w{border-top:1px solid #111}
+.group.tile .gl{color:#111;font-size:9.5px;font-weight:700}
+.tk{all:unset;box-sizing:border-box;display:flex;flex-direction:column;align-items:center;gap:3px;min-width:46px;padding:2px 2px;cursor:pointer;touch-action:manipulation}
+.tk i{display:block;width:26px;height:26px;border-radius:50%;background:radial-gradient(circle at 35% 30%,#e9eaec,#a9acb1);border:1.5px solid #6a6d73}
+.tk em{font-style:normal;font:700 11px/1 system-ui,sans-serif;background:#fff;color:#111;border:1px solid #222;padding:2px 4px;white-space:nowrap}
+.tk:active i{background:#8d9097}
+.tk.pend i,.tk.on i{background:radial-gradient(circle at 35% 30%,#fff3a6,#facc15);border-color:#7a6200}
+.tk.pend em,.tk.on em{background:#facc15}
+.tk:disabled{opacity:.45}
+.tk:focus-visible i{outline:2px solid #9333ea}
+.zaehler{display:grid;grid-template-columns:repeat(3,auto);gap:6px 10px}
+.zw{display:flex;align-items:center;gap:5px;flex-wrap:wrap}
+.zw .knob{width:18px;height:18px;border-radius:50%;background:radial-gradient(circle at 35% 30%,#e9eaec,#a9acb1);border:1.5px solid #6a6d73}
+.zw .cnt{display:inline-flex;background:#fff;border:1px solid #222;padding:1px 2px}
+.zw .cnt b{font:700 12px ui-monospace,Menlo,monospace;color:#111;padding:0 2px;border-right:1px solid #999;min-width:11px;text-align:center}
+.zw .cnt b:last-child{border-right:0}
+.zw em{font-style:normal;font:700 10px system-ui;background:#fff;border:1px solid #222;padding:1px 3px;color:#111}
+.lamp{background:#c9ccd1;color:#111;border:1px solid #222;border-radius:0;font-size:11px;padding:2px 6px}
+.lamp.yellow{background:#facc15;color:#111}.lamp.red{background:#e11d1d;color:#fff}
+.top .meldung{background:#111;border-color:#000;color:#fbbf24}
+.group.tile button:not(.tk){background:#e5e7ea;color:#111;border:1px solid #222;border-radius:2px;min-height:34px}
+.group.tile button.on:not(.tk){background:#facc15}
+.g-i{background:#4a4e55;border:1px dashed #f59e0b;color:#eee}.g-i .gl{color:#f59e0b}
+.g-i button{background:#2d3138;color:#eee;border:1px solid #666;border-radius:4px}
+.group.g-z .gl,.group.g-w .gl{color:#10163a}
+.nstp-disp{background:#000}
+.score{color:#111}.zugliste{color:#111}.zugliste b{color:#000}
+.group.grow:not(.tile){background:#2b2f35;border-color:#111}
+.chip{background:#fff;color:#111;border-color:#222}

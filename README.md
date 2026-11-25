@@ -1,4 +1,4 @@
-# Sp Dr 60 – Kaiserslautern Hbf (Westkopf), Version 3
+# Sp Dr 60 – Kaiserslautern Hbf (Westkopf), Version 4
 
 Tablet-Simulation eines Spurplan-Drucktastenstellwerks (Sp Dr 60) als statische Web-App.
 Bedienlogik und Melderzustände orientieren sich an der Ril 482.9009 (das Dokument selbst ist nicht Teil des Repositories).
@@ -21,14 +21,14 @@ Läuft ohne Server, ohne Build-Schritt – einfach über GitHub Pages hosten.
 - `js/engine.js` – Stellwerkslogik (Fahrwegsuche, Flankenschutz, Verschlüsse, Weichenlauf, Festlegemelder, Auflösung, FRT/FHT, Ersatzsignal, Laufkettensperre, Zählwerke, Störungen).
 - `js/app.js` – Oberfläche (SVG-Gleisbild, Touch-Bedienung, Hilfstasten).
 
-## Stand Version 2 / bekannte Grenzen
-- Gleisbild aus dem Plan „Serviceeinrichtungen Kaiserslautern Hbf“ übertragen, **nicht amtlich geprüft**.
+## Stand Version 4 / bekannte Grenzen
+- Oberfläche nach den Tischfeldern der Ril 482.9009: farbige Tischfelder, runde Tasten mit Beschriftungsschild, Zählwerke mit Zahlenfeldern,
+  Gleisbild mit schwarzen Gleisbändern, Gleisfeldmeldern (grau/gelb/rot), Weichen mit Spitzentaste, Stellungs-, Verschluss- und Sperrmeldern,
+  Signalen mit Zugstraßentaste (Haltmelder), Festlegemelder und Namensschild.
+- Gleisbild aus dem Plan „Serviceeinrichtungen Kaiserslautern Hbf“ übertragen, **nicht amtlich geprüft**. Der Ostkopf ist vereinfacht nachgebaut.
 - Fahrstraßen und Flankenschutz werden aus der Topologie berechnet, nicht aus der echten Verschlusstabelle.
-- Abgebildet: Zugstraßen (Start-/Zieltaste, Zeitfenster), Festlegemelder, abschnittsweise Auflösung, FRT, FHT (gesamt und einzeln),
-  HaGT, LsSpT/LsESpT, ErsGT (mit Laufkettensperre, erlischt nach 90 s), WGT, WHT, WAT, WSpT/WESpT, Bahnhofstaste, AzGrT,
-  Weichenausleuchtung, Zählwerke, Weichen-/Signal-/Freimelde-/Auffahrstörungen mit Wecker und Hupe.
-- Version 3: Nummernstellpult mit Zugnummern (folgen dem Zug) und Fahrplanbetrieb (ruhig/normal/dicht) mit Ziel und Wertung.
-- Nicht abgebildet: Durchrutschweg (DHT/DRGT), Rangier- und Zughilfsstraßen, Umfahrstraßen, Mittelweichen, Nahstellbetrieb,
-  Streckenblock/Erlaubnis.
-- Fehlt noch: Ostkopf, Werk/Abstellanlagen (Weichen 010–016, 020/021, 050–053, 059/060, 062–076, 105–113), Gleisanschlüsse 214/215,
-  ortsgestellte Weichen, Gleisfreimeldeabschnitte nach Original.
+- Abgebildet: Zugstraßen (Start-/Zieltaste, Zeitfenster), Festlegemelder, abschnittsweise Auflösung, FRT, FHT, HaGT, LsSpT/LsESpT,
+  ErsGT mit Laufkettensperre, WGT, WHT, WAT, WSpT/WESpT, Bahnhofstaste, AzGrT, Weichenausleuchtung, Zählwerke, Störungen mit Wecker/Hupe,
+  Nummernstellpult mit Zugnummern, Fahrplanbetrieb mit Wertung.
+- Nicht abgebildet: Durchrutschweg (DHT), Rangier-/Zughilfsstraßen, Umfahrstraßen, Nahstellbetrieb, Streckenblock.
+- Fehlt noch: Werk und Abstellanlagen (Gleise 220–237, Weichen 025–027, 050–053, 056, 059, 060), Gleise 109/119/180–182, Gleisanschlüsse, ortsgestellte Weichen.
