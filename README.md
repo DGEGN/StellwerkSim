@@ -32,3 +32,12 @@ Läuft ohne Server, ohne Build-Schritt – einfach über GitHub Pages hosten.
   Nummernstellpult mit Zugnummern, Fahrplanbetrieb mit Wertung.
 - Nicht abgebildet: Durchrutschweg (DHT), Rangier-/Zughilfsstraßen, Umfahrstraßen, Nahstellbetrieb, Streckenblock.
 - Fehlt noch: Werk und Abstellanlagen (Gleise 220–237, Weichen 025–027, 050–053, 056, 059, 060), Gleise 109/119/180–182, Gleisanschlüsse, ortsgestellte Weichen.
+
+
+## Version 5: Tagesfahrplan
+- `js/fahrplan.js`: Regelfahrplan Kaiserslautern Hbf (Abfahrtstafel gültig ab 14.06.2026), 249 Zugfahrten, für Mo–Fr (Mi 25.11.2026), Sa (28.11.) und So (29.11.) ausgewertet. Gültigkeitshinweise („vom … bis …“, „nicht …“, „auch …“) wurden für diese Referenztage berechnet.
+- `js/fahrplanbetrieb.js`: Tagesfahrplan-Betrieb. Der Fahrplan nennt nur Abfahrten – Ankunftszeiten sind errechnet (Durchläufer 3 min, Wendezüge 7 min Aufenthalt). Zugnummer, Linie und Plangleis werden angezeigt. Abfahrt erst zur Planzeit.
+- Gleiszuordnung: 1=101, 2=102, 5=105, 8=108, 10=110, übrige gleich. Richtungen: Pirmasens, Lauterecken, Homburg (Landstuhl/Kusel), Ludwigshafen (Hochspeyer/Neustadt), Enkenbach (Bad Münster).
+- Zusätzlich im Gleisbild (nicht im Plan vorhanden, nötig für den Fahrplan): Signale P108, P110, N120; Weichen 048, 057, 058 (Überleitung Gl. 40 ↔ Homburg, Gl. 110 ↔ Westkopf).
+- `tests/test-fahrplan.mjs <mf|sa|so> <von h> <bis h>`: Bot fährt einen ganzen Tag (alle drei Tage: 0 falsch, 0 ausgefallen).
+- Noch nicht enthalten: Werk/Abstellanlagen, Gleise 109/119/162–190, Durchrutschweg, Rangierstraßen, Eselsfürth.

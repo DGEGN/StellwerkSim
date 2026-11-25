@@ -95,3 +95,10 @@ button.pend { background:#a855f7; border-color:#a855f7; color:#fff; } button.pen
 .score{color:#111}.zugliste{color:#111}.zugliste b{color:#000}
 .group.grow:not(.tile){background:#2b2f35;border-color:#111}
 .chip{background:#fff;color:#111;border-color:#222}
+
+/* Version 5: Tagesfahrplan */
+.fprow{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+.fprow select{background:#1f2937;color:#e5e7eb;border:1px solid #475569;border-radius:6px;padding:6px 4px;font-size:13px}
+.tafel table{width:100%;border-collapse:collapse;font-size:12px;margin:4px 0}
+.tafel td{padding:1px 4px;border-bottom:1px solid #334155;white-space:nowrap}
+.tafel tr.ein td{color:#facc15}.tafel tr.aus td{color:#4ade80}

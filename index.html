@@ -12,7 +12,7 @@
 </head>
 <body>
 <header>
-  <div class="title"><b>Sp&nbsp;Dr&nbsp;60</b> · Kaiserslautern Hbf <span class="sub">Gesamtanlage · Version&nbsp;4</span></div>
+  <div class="title"><b>Sp&nbsp;Dr&nbsp;60</b> · Kaiserslautern Hbf <span class="sub">Gesamtanlage · Version&nbsp;5</span></div>
   <div class="hdr-right">
     <span id="clock">00:00</span>
     <button class="small" data-view="west">Westkopf</button><button class="small" data-view="ost">Ostkopf</button><button class="small" data-view="all">Gesamt</button>
@@ -79,7 +79,13 @@
       <button data-mode="NUMDEL">Nr. löschen</button>
     </div>
     <div class="group tile t-gray g-b"><span class="gl">Fahrplanbetrieb</span>
-      <button id="btn-betrieb">Betrieb: aus</button>
+      <span class="fprow">
+        <select id="fp-day" title="Verkehrstag"><option value="mf">Mo–Fr</option><option value="sa">Samstag</option><option value="so">Sonntag</option></select>
+        <select id="fp-start" title="Startuhrzeit"></select>
+        <button id="btn-fp">Tagesfahrplan starten</button>
+      </span>
+      <div id="tafel" class="tafel"></div>
+      <button id="btn-betrieb">Zufallsbetrieb: aus</button>
       <span id="score" class="score">✔ 0 · ✖ 0 · Verspätung 0 min</span>
       <div id="zugliste" class="zugliste">–</div>
     </div>
@@ -102,7 +108,8 @@
   <p><b>Melder:</b> gelb = im Fahrweg/verschlossen · rot = besetzt · Weiche blinkt gelb = läuft um · rot blinkend = Störung. Signal: rot = Halt, grün = Fahrt, weißes Dreieck = Zs 1, gelber Ring = gesperrt.</p>
   <p><b>Störungen:</b> Unter „Störung auslösen“ lassen sich Weichen-, Signal-, Freimelde- und Auffahrstörungen erzeugen. Wecker (WUT) und Hupe (HuT) lassen sich abstellen, die Störmelder bleiben bis zur Behebung.</p>
   <p class="warn"><b>Hinweis:</b> Das Gleisbild wurde aus dem Plan „Serviceeinrichtungen Kaiserslautern Hbf“ übertragen und ist nicht amtlich geprüft. Fahrstraßen und Flankenschutz werden berechnet, nicht aus der echten Verschlusstabelle. Nicht abgebildet: Durchrutschweg, Rangierstraßen, Zughilfsstraßen, Umfahrstraßen, Nahstellbetrieb. Ortsstellbereiche, Werk und Gleise 109/119/180–182 fehlen noch. Der Ostkopf ist nach dem Plan vereinfacht nachgebaut.</p>
-  <p><b>Fahrplanbetrieb:</b> „Betrieb“ schaltet zwischen aus / ruhig / normal / dicht. Dann kommen Züge mit Zugnummer: Einfahrten aus Lauterecken, Homburg und Pirmasens warten vor ihrem Signal und wollen in ein bestimmtes Gleis (steht in der Zugliste und in der Meldezeile). Angekommene Züge wenden nach einiger Zeit und wollen nach Westen. Falsch geleitete Züge zählen als ✖, Wartezeit vor Signalen als Verspätung.</p>
+  <p><b>Tagesfahrplan:</b> Original-Regelfahrplan Kaiserslautern Hbf (Abfahrtstafel, gültig ab 14.06.2026) für Mo–Fr (Mi 25.11.), Sa (28.11.) und So (29.11.2026). Startuhrzeit und Verkehrstag wählen, dann „Tagesfahrplan starten“. Jeder Zug erscheint ca. 3 Minuten vor Planankunft vor seinem Einfahrsignal und will in das Plangleis (Gleisbezeichnung wie im Fahrplan: 1 = Gl. 101, 2 = Gl. 102, 5 = Gl. 105, 8 = Gl. 108, 10 = Gl. 110, sonst gleich). Züge, die enden bzw. kehren, wenden im Bahnhof; sie dürfen erst zur Planzeit abfahren. Richtungen: Pirmasens, Lauterecken, Homburg (Landstuhl/Kusel), Ludwigshafen (Hochspeyer/Neustadt), Enkenbach (Bad Münster). Die Ankunftszeiten sind errechnet (der Fahrplan nennt nur Abfahrten). Wertung: Verspätung = Wartezeit vor Signalen.</p>
+  <p><b>Zufallsbetrieb:</b> „Betrieb“ schaltet zwischen aus / ruhig / normal / dicht. Dann kommen Züge mit Zugnummer: Einfahrten aus Lauterecken, Homburg und Pirmasens warten vor ihrem Signal und wollen in ein bestimmtes Gleis (steht in der Zugliste und in der Meldezeile). Angekommene Züge wenden nach einiger Zeit und wollen nach Westen. Falsch geleitete Züge zählen als ✖, Wartezeit vor Signalen als Verspätung.</p>
   <p><b>Nummernstellpult:</b> Ziffern eintippen, „Nr. setzen“ wählen und Zug oder besetztes Gleis antippen. „Nr. löschen“ entfernt die Nummer. Die Nummer wandert mit dem Zug (Zugnummernmeldeanlage).</p>
   <form method="dialog"><button>Schließen</button></form>
 </dialog>
