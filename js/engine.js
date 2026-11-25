@@ -1,8 +1,15 @@
-// Stellwerks-Engine (Spurplan-Drucktastenstellwerk, vereinfacht nach Spdr L60)
+// Stellwerks-Engine – Spurplanstellwerk Sp Dr 60 (vereinfacht, Bedienlogik nach Ril 482.9009)
 // Läuft im Browser und in Node (für Tests). Keine DOM-Abhängigkeiten.
+//
+// Abgebildet: Zugstraßen (Start-/Zieltaste), Weichenlaufkette, Verschlüsse, Flankenschutz,
+// Festlegemelder, abschnittsweise Auflösung, Rücknahme (FRT), Hilfsauflösung (FHT, auch einzeln),
+// Signalhalt/-sperre, Ersatzsignal, Weichen einzeln/Hilfstaste/Sperre/Auffahren, Zählwerke, Störungen.
+// Nicht abgebildet: Durchrutschweg, Rangierstraßen, Zughilfsstraßen, Umfahrstraßen, Nahstellbetrieb.
 
-export const SWITCH_TIME = 2.5;   // s für eine Weichenumlauf-Bewegung
-export const FHT_WAIT = 8;        // s Auflösewartezeit (im echten Betrieb ca. 2 min)
+export const SWITCH_TIME = 3.5;     // s Weichenumlauf (Ril: i. d. R. 3–5 s)
+export const SWITCH_FAULT_TIME = 6; // s bis Weichenstörung gemeldet wird (Ril §11)
+export const ERSATZ_TIME = 90;      // s bis Ersatzsignal selbsttätig erlischt (Ril §6 Abs. 6)
+export const KEY_WINDOW = 5;        // s Zeitfenster für Folgebedienung (Ril §7)
 const OPEN = new Set(['Hp1', 'Hp2', 'Zs1']);
 
 export class Interlocking {
@@ -13,8 +20,7 @@ export class Interlocking {
     this.portMap = {};
     for (const [id, n] of Object.entries(data.nodes)) this.nodes[id] = { id, ...n };
     for (const [id, a, b, via] of data.edges) {
-      const ea = this._end(a), eb = this._end(b);
-      this.edges[id] = { id, ends: [ea, eb], via: via || [] };
+      this.edges[id] = { id, ends: [this._end(a), this._end(b)], via: via || [] };
       this.portMap[a] = id;
       this.portMap[b] = id;
     }
@@ -25,49 +31,55 @@ export class Interlocking {
     }
     this.sw = {};
     this.sig = {};
-    this.occ = {};   // element -> trainId
-    this.fault = {}; // element -> true (Gleisfreimeldestörung, belegt gemeldet)
-    this.lock = {};  // element -> routeId
-    this.flankLock = {}; // swId -> {pos, count}
+    this.occ = {};       // Element -> Zug-ID (tatsächliche Besetzung)
+    this.fault = {};     // Element -> true (Gleisfreimeldestörung: als besetzt gemeldet)
+    this.lock = {};      // Element -> Fahrstraßen-ID
+    this.flankLock = {}; // Weiche -> {pos, count}
     this.routes = [];
     this.trains = [];
     this.time = 0;
     this._rid = 1;
     this._tid = 1;
     this.messages = [];
-    this.listeners = [];
+    this.laufkette = false;      // Weichenlaufkette gesperrt
+    this.ausleuchtung = false;   // Weichenausleuchtung (StET)
+    this.alarm = { wecker: false, hupe: false };
+    this.zaehler = { FHZ: 0, WHZ: 0, ErsZ: 0, EAZ: 0, GAZ: 0, WAZ: 0 };
     for (const n of Object.values(this.nodes)) {
-      if (n.t === 'sw') this.sw[n.id] = { pos: 'str', target: 'str', moving: 0, disturbed: false };
-      if (n.t === 'sig') this.sig[n.id] = { aspect: 'Hp0', route: null, disturbed: false };
+      if (n.t === 'sw') this.sw[n.id] = { pos: 'str', target: 'str', moving: 0, disturbed: false, stoerTimer: 0, stoerMelder: false, sperre: false, aufgefahren: false, force: false };
+      if (n.t === 'sig') this.sig[n.id] = { aspect: 'Hp0', route: null, disturbed: false, sperre: false, zsTimer: 0 };
     }
     this._validate();
   }
 
   _end(s) { const [node, port] = s.split('.'); return { node, port }; }
   _pos(id) { const n = this.nodes[id]; return [n.x, n.y]; }
-
   _validate() {
     for (const n of Object.values(this.nodes)) {
       const ports = n.t === 'sw' ? ['stem', 'str', 'br'] : n.t === 'sig' ? ['w', 'e'] : ['p'];
-      for (const p of ports) {
-        if (!this.portMap[`${n.id}.${p}`]) throw new Error(`Port ohne Kante: ${n.id}.${p}`);
-      }
+      for (const p of ports) if (!this.portMap[`${n.id}.${p}`]) throw new Error(`Port ohne Kante: ${n.id}.${p}`);
     }
   }
 
-  on(fn) { this.listeners.push(fn); }
-  _emit() { for (const fn of this.listeners) fn(); }
   msg(text, level = 'info') {
     this.messages.unshift({ t: this.time, text, level });
-    if (this.messages.length > 40) this.messages.pop();
+    if (this.messages.length > 60) this.messages.pop();
+  }
+  isElement(id) { return !!this.edges[id] || (this.nodes[id] && this.nodes[id].t === 'sw'); }
+  label(el) { return this.edges[el] ? el : 'W ' + this.nodes[el].no; }
+  sname(id) { return this.nodes[id].name || id; }
+  isOccupied(el) { return !!this.occ[el] || !!this.fault[el]; }
+  routeOf(sigId) { const r = this.sig[sigId].route; return r ? this.routes.find(x => x.id === r) : null; }
+  _fail(text) { this.msg(text, 'err'); return { ok: false, msg: text }; }
+  _ok(text, level = 'info') { if (text) this.msg(text, level); return { ok: true }; }
+  anyFault() {
+    return {
+      weiche: Object.values(this.sw).some(s => s.stoerMelder || s.aufgefahren),
+      signal: Object.values(this.sig).some(s => s.disturbed),
+      gleis: Object.keys(this.fault).length > 0,
+    };
   }
 
-  isElement(id) { return !!this.edges[id] || (this.nodes[id] && this.nodes[id].t === 'sw'); }
-  elements() { return [...Object.keys(this.edges), ...Object.keys(this.sw)]; }
-  label(el) { return this.edges[el] ? el : 'W ' + this.nodes[el].no; }
-  isOccupied(el) { return !!this.occ[el] || !!this.fault[el]; }
-
-  // Gegenseite einer Kante vom Knoten/Port aus
   _across(node, port) {
     const eid = this.portMap[`${node}.${port}`];
     const e = this.edges[eid];
@@ -79,16 +91,15 @@ export class Interlocking {
   findPath(startSig, targetId) {
     const S = this.nodes[startSig];
     if (!S || S.t !== 'sig') return null;
-    const exitPort = S.dir === 'E' ? 'e' : 'w';
-    const first = this._across(startSig, exitPort);
-    const best = new Map();
+    const first = this._across(startSig, S.dir === 'E' ? 'e' : 'w');
+    const seen = new Set();
     const pq = [{ cost: 0, node: first.node, port: first.port, elems: [first.edge], sw: {}, br: 0 }];
     while (pq.length) {
       pq.sort((a, b) => a.cost - b.cost);
       const cur = pq.shift();
       const key = cur.node + '.' + cur.port + '|' + Object.entries(cur.sw).map(([k, v]) => k + v).join(',');
-      if (best.has(key)) continue;
-      best.set(key, 1);
+      if (seen.has(key)) continue;
+      seen.add(key);
       const N = this.nodes[cur.node];
       if (N.t === 'term') {
         if (N.id === targetId) return { elems: cur.elems, sw: cur.sw, br: cur.br, end: N.id };
@@ -98,17 +109,13 @@ export class Interlocking {
         const front = N.dir === 'E' ? 'w' : 'e';
         if (cur.port === front) {
           if (N.id === targetId) return { elems: cur.elems, sw: cur.sw, br: cur.br, end: N.id };
-          continue; // anderes Signal in Fahrtrichtung beendet jede Fahrstraße
+          continue;
         }
-        const out = cur.port === 'w' ? 'e' : 'w';
-        const nx = this._across(N.id, out);
+        const nx = this._across(N.id, cur.port === 'w' ? 'e' : 'w');
         pq.push({ ...cur, cost: cur.cost + 1, node: nx.node, port: nx.port, elems: [...cur.elems, nx.edge] });
         continue;
       }
-      // Weiche
-      const opts = [];
-      if (cur.port === 'stem') { opts.push(['str', 'str'], ['br', 'br']); }
-      else { opts.push(['stem', cur.port]); }
+      const opts = cur.port === 'stem' ? [['str', 'str'], ['br', 'br']] : [['stem', cur.port]];
       for (const [outPort, pos] of opts) {
         if (cur.sw[N.id] && cur.sw[N.id] !== pos) continue;
         const nx = this._across(N.id, outPort);
@@ -124,18 +131,11 @@ export class Interlocking {
     return null;
   }
 
-  // gültige Ziele für ein Startsignal (für die Zielleuchten)
   validTargets(startSig) {
-    const out = [];
-    for (const n of Object.values(this.nodes)) {
-      if (n.t !== 'term') continue;
-      const p = this.findPath(startSig, n.id);
-      if (p) out.push(n.id);
-    }
-    return out;
+    return Object.values(this.nodes).filter(n => n.t === 'term' && this.findPath(startSig, n.id)).map(n => n.id);
   }
 
-  // Flankenschutz: gibt {need: {weiche: lage}, open: [unschützbare Stellen]} zurück
+  // Flankenschutz-Bedarf
   _flank(path) {
     const need = {};
     const open = [];
@@ -144,21 +144,19 @@ export class Interlocking {
       const prev = path.elems[i - 1], next = path.elems[i + 1];
       for (const p of ['str', 'br']) {
         const e = this.portMap[`${id}.${p}`];
-        if (e === prev || e === next) continue; // Strang gehört zum Fahrweg
+        if (e === prev || e === next) continue;
         let c = this._across(id, p);
         for (let guard = 0; guard < 12; guard++) {
           const N = this.nodes[c.node];
-          if (N.t === 'term') break; // Prellbock/Gleisende schützt
+          if (N.t === 'term') break;
           if (N.t === 'sig') {
-            // Fahrt zur Weiche hin liefe auf die Frontseite des Signals (Halt) -> Schutz
             if (c.port === (N.dir === 'E' ? 'e' : 'w')) break;
             c = this._across(N.id, c.port === 'w' ? 'e' : 'w');
             continue;
           }
           if (c.port === 'stem') { open.push(`${this.nodes[id].no}/${N.no}`); break; }
           const want = c.port === 'str' ? 'br' : 'str';
-          const have = path.sw[N.id];
-          if (!have) need[N.id] = want;
+          if (!path.sw[N.id]) need[N.id] = want;
           break;
         }
       }
@@ -166,41 +164,44 @@ export class Interlocking {
     return { need, open };
   }
 
-  // ---------- Fahrstraße einstellen ----------
+  // ---------- Zugstraße einstellen (Starttaste + Zieltaste) ----------
   request(startSig, targetId) {
     const sg = this.sig[startSig];
     if (!sg) return this._fail('Unbekanntes Signal');
-    const name = this.nodes[startSig].name;
-    const tname = this.nodes[targetId] ? this.nodes[targetId].name : targetId;
-    if (sg.route) return this._fail(`Signal ${name} hat bereits eine Fahrstraße`);
+    const name = this.sname(startSig);
+    const tname = this.sname(targetId);
+    const label = `${name} → ${tname}`;
+    if (sg.route) return this._fail(`Signal ${name}: Fahrstraße bereits eingestellt`);
+    if (sg.sperre) return this._fail(`Signal ${name} ist gesperrt`);
     const path = this.findPath(startSig, targetId);
-    if (!path) return this._fail(`Keine Fahrstraße ${name} → ${tname} möglich`);
-    // Prüfungen
+    if (!path) return this._fail(`${label}: Zugstraße nicht vorhanden`);
     for (const el of path.elems) {
-      if (this.isOccupied(el)) return this._fail(`${name} → ${tname}: ${this.label(el)} besetzt`);
-      if (this.lock[el]) return this._fail(`${name} → ${tname}: Fahrstraßenausschluss (${this.label(el)} festgelegt)`);
-    }
-    for (const [id, pos] of Object.entries(path.sw)) {
-      const fl = this.flankLock[id];
-      if (fl && fl.pos !== pos) return this._fail(`${name} → ${tname}: Fahrstraßenausschluss (Flankenschutz W ${this.nodes[id].no})`);
-      const s = this.sw[id];
-      if (s.disturbed && s.pos !== pos) return this._fail(`${name} → ${tname}: Weichenstörung W ${this.nodes[id].no}`);
+      if (this.isOccupied(el)) return this._fail(`${label}: ${this.label(el)} besetzt – Zugstraße läuft nicht ein`);
+      if (this.lock[el]) return this._fail(`${label}: ${this.label(el)} in anderer Fahrstraße (Fahrstraßenausschluss)`);
     }
     const fl = this._flank(path);
     const flankOk = {};
     const unprotected = [...fl.open];
+    for (const [id, pos] of Object.entries(path.sw)) {
+      const f = this.flankLock[id];
+      if (f && f.pos !== pos) return this._fail(`${label}: Fahrstraßenausschluss (W ${this.nodes[id].no} dient als Flankenschutz)`);
+      const s = this.sw[id];
+      if (s.pos !== pos && (this.laufkette || s.sperre || s.disturbed || s.aufgefahren)) {
+        const why = this.laufkette ? 'Weichenlaufkette gesperrt' : s.sperre ? 'gesperrt' : s.aufgefahren ? 'aufgefahren' : 'gestört';
+        return this._fail(`${label}: W ${this.nodes[id].no} nicht in Stellung (${why})`);
+      }
+    }
     for (const [id, pos] of Object.entries(fl.need)) {
-      const cur = this.flankLock[id];
-      const routeLock = this.lock[id] ? this.routes.find(r => r.id === this.lock[id]) : null;
-      const lockedOther = routeLock && routeLock.sw[id] !== pos;
-      if ((cur && cur.pos !== pos) || lockedOther || (this.sw[id].disturbed && this.sw[id].pos !== pos) || this.isOccupied(id) && this.sw[id].pos !== pos) {
-        unprotected.push(this.nodes[id].no);
-      } else flankOk[id] = pos;
+      const f = this.flankLock[id];
+      const rl = this.lock[id] ? this.routes.find(r => r.id === this.lock[id]) : null;
+      const s = this.sw[id];
+      const blocked = (f && f.pos !== pos) || (rl && rl.sw[id] !== pos) || (s.pos !== pos && (this.laufkette || s.sperre || s.disturbed || s.aufgefahren || this.isOccupied(id)));
+      if (blocked) unprotected.push(this.nodes[id].no); else flankOk[id] = pos;
     }
     const route = {
       id: this._rid++, start: startSig, target: targetId, elems: path.elems, sw: path.sw,
-      flank: flankOk, diverging: path.br > 0, state: 'setting', progress: -1, fht: null, unprotected,
-      names: `${name} → ${tname}`,
+      flank: flankOk, diverging: path.br > 0, state: 'setting', progress: -1, unprotected,
+      names: label, ffm: false,
     };
     for (const el of route.elems) this.lock[el] = route.id;
     for (const [id, pos] of Object.entries(route.flank)) {
@@ -208,102 +209,160 @@ export class Interlocking {
       f.count++;
     }
     for (const [id, pos] of [...Object.entries(route.sw), ...Object.entries(route.flank)]) {
-      this.sw[id].target = pos;
+      if (this.sw[id].pos !== pos) this.sw[id].target = pos;
     }
     sg.route = route.id;
     this.routes.push(route);
-    this.msg(`Fahrstraße ${route.names} wird eingestellt` + (unprotected.length ? ` – Flankenschutz unvollständig (${unprotected.join(', ')})` : ''), unprotected.length ? 'warn' : 'info');
-    this._emit();
+    this.msg(`Zugstraße ${label} läuft ein` + (unprotected.length ? ` – kein Flankenschutz an ${unprotected.join(', ')}` : ''), unprotected.length ? 'warn' : 'info');
     return { ok: true, route };
   }
 
-  _fail(text) { this.msg(text, 'err'); this._emit(); return { ok: false, msg: text }; }
-
-  routeOf(sigId) { const r = this.sig[sigId].route; return r ? this.routes.find(x => x.id === r) : null; }
-
-  // ---------- Hilfsbedienungen ----------
-  signalHalt(sigId) {
+  // ---------- Signale ----------
+  signalHalt(sigId) {            // HaGT + ZT
     const sg = this.sig[sigId];
-    if (!OPEN.has(sg.aspect)) return this._fail(`Signal ${this.nodes[sigId].name} steht schon auf Halt`);
-    sg.aspect = 'Hp0';
+    if (!OPEN.has(sg.aspect)) return this._fail(`Signal ${this.sname(sigId)} zeigt schon Halt`);
+    sg.aspect = 'Hp0'; sg.zsTimer = 0;
     const r = this.routeOf(sigId);
     if (r) r.held = true;
-    this.msg(`Signal ${this.nodes[sigId].name}: Halt (SHT)`);
-    this._emit();
-    return { ok: true };
+    return this._ok(`Signal ${this.sname(sigId)} auf Halt (HaGT)`);
   }
-
-  hilfsaufloesen(sigId) {
+  signalSperren(sigId) {         // LsSpT + ZT
+    const sg = this.sig[sigId];
+    if (OPEN.has(sg.aspect)) return this._fail(`Signal ${this.sname(sigId)} steht auf Fahrt – vor dem Sperren auf Halt stellen`);
+    sg.sperre = true;
+    return this._ok(`Signal ${this.sname(sigId)} gesperrt (LsSpT)`);
+  }
+  signalEntsperren(sigId) {      // LsESpT + ZT
+    this.sig[sigId].sperre = false;
+    return this._ok(`Signal ${this.sname(sigId)} entsperrt (LsESpT)`);
+  }
+  ersatzsignal(sigId) {          // ErsGT + ZT
     const sg = this.sig[sigId];
     const r = this.routeOf(sigId);
-    if (!r) return this._fail(`Signal ${this.nodes[sigId].name}: keine Fahrstraße festgelegt`);
-    if (OPEN.has(sg.aspect)) return this._fail(`Signal ${this.nodes[sigId].name} zeigt Fahrt – erst Signal Halt (SHT)`);
-    r.fht = FHT_WAIT;
-    this.msg(`Hilfsauflösung ${r.names}: Wartezeit läuft (${FHT_WAIT} s)`, 'warn');
-    this._emit();
-    return { ok: true };
+    if (!r || r.state !== 'locked') return this._fail(`Ersatzsignal ${this.sname(sigId)}: Zugstraße nicht eingestellt und gesichert`);
+    if (!this.laufkette) return this._fail('Ersatzsignal: Weichenlaufkette vorher sperren (WSpT + BfT)');
+    if (OPEN.has(sg.aspect)) return this._fail(`Signal ${this.sname(sigId)} zeigt bereits Fahrt`);
+    sg.aspect = 'Zs1'; sg.zsTimer = ERSATZ_TIME; r.held = false;
+    this.zaehler.ErsZ++;
+    return this._ok(`Ersatzsignal Zs 1 an ${this.sname(sigId)} (ErsGT, Ersatzsignalzählwerk ${this.zaehler.ErsZ})`, 'warn');
   }
 
-  ersatzsignal(sigId) {
-    const sg = this.sig[sigId];
-    const r = this.routeOf(sigId);
-    if (!r || r.state !== 'locked') return this._fail(`Ersatzsignal ${this.nodes[sigId].name}: Fahrstraße nicht fest`);
-    if (!sg.disturbed) return this._fail(`Ersatzsignal nur bei Signalstörung (Signal ${this.nodes[sigId].name} ist nicht gestört)`);
-    sg.aspect = 'Zs1';
-    r.held = false;
-    this.msg(`Ersatzsignal Zs 1 an ${this.nodes[sigId].name} (EGT)`, 'warn');
-    this._emit();
+  // ---------- Fahrstraßen auflösen ----------
+  ruecknahme(startSig, targetId) {         // FRT + ZT Start + ZT Ziel
+    const r = this.routeOf(startSig);
+    if (!r) return this._fail(`Signal ${this.sname(startSig)}: keine Fahrstraße eingestellt`);
+    if (r.target !== targetId) return this._fail(`Zieltaste passt nicht zur Fahrstraße ${r.names}`);
+    if (OPEN.has(this.sig[startSig].aspect)) return this._fail(`Signal ${this.sname(startSig)} erst auf Halt stellen (HaGT)`);
+    if (r.ffm) return this._fail(`${r.names}: Festlegemelder leuchtet – Auflösen nur mit FHT`);
+    this._dissolve(r, true, 'zurückgenommen');
     return { ok: true };
   }
-
-  switchManual(swId, pos) {
-    const s = this.sw[swId];
-    if (this.lock[swId] || this.flankLock[swId]) return this._fail(`W ${this.nodes[swId].no} ist festgelegt`);
-    if (this.isOccupied(swId)) return this._fail(`W ${this.nodes[swId].no} besetzt`);
-    if (s.disturbed) return this._fail(`W ${this.nodes[swId].no} gestört`);
-    s.target = pos || (s.pos === 'str' ? 'br' : 'str');
-    this.msg(`W ${this.nodes[swId].no} wird in ${s.target === 'str' ? 'Grund' : 'Abzweig'}stellung umgestellt (WT)`);
-    this._emit();
+  hilfsaufloesen(startSig, targetId) {     // FHT + ZT Start + ZT Ziel
+    const r = this.routeOf(startSig);
+    if (!r) return this._fail(`Signal ${this.sname(startSig)}: keine Fahrstraße eingestellt`);
+    if (r.target !== targetId) return this._fail(`Zieltaste passt nicht zur Fahrstraße ${r.names}`);
+    if (OPEN.has(this.sig[startSig].aspect)) return this._fail(`Signal ${this.sname(startSig)} erst auf Halt stellen (HaGT)`);
+    this.zaehler.FHZ++; this.zaehler.GAZ++;
+    this._dissolve(r, true, `hilfsaufgelöst (FHT, Zählwerk ${this.zaehler.FHZ})`);
     return { ok: true };
   }
+  hilfsaufloesenEinzel(el) {               // FHT + Weichen-/Gleistaste
+    const rid = this.lock[el];
+    const fl = this.flankLock[el];
+    if (!rid && !fl) return this._fail(`${this.label(el)} ist nicht verschlossen`);
+    if (rid) {
+      const r = this.routes.find(x => x.id === rid);
+      delete this.lock[el];
+      r.elems = r.elems.filter(e => e !== el);
+      if (!r.elems.some(e => this.lock[e] === r.id)) this._dissolve(r, true, 'durch Einzelauflösung aufgelöst');
+    } else {
+      for (const r of this.routes) if (r.flank[el]) { delete r.flank[el]; }
+      delete this.flankLock[el];
+    }
+    this.zaehler.EAZ++;
+    return this._ok(`${this.label(el)} einzeln hilfsaufgelöst (FHT, Zählwerk EAZ ${this.zaehler.EAZ})`, 'warn');
+  }
 
-  toggleSwitchFault(swId) {
-    const s = this.sw[swId];
+  // ---------- Weichen ----------
+  laufketteSperren(on) {                   // WSpT/WESpT + BfT
+    this.laufkette = on;
+    return this._ok(on ? 'Weichenlaufkette gesperrt (WSpT + BfT)' : 'Weichenlaufkette entsperrt (WESpT + BfT)');
+  }
+  weicheUmstellen(id) {                    // WGT + WT
+    const s = this.sw[id];
+    if (this.lock[id] || this.flankLock[id]) return this._fail(`W ${this.nodes[id].no} verschlossen`);
+    if (this.isOccupied(id)) return this._fail(`W ${this.nodes[id].no} besetzt – Umstellen nur mit WHT`);
+    if (s.sperre) return this._fail(`W ${this.nodes[id].no} gesperrt`);
+    if (s.disturbed) { s.target = s.target === 'str' ? 'br' : 'str'; return this._ok(`W ${this.nodes[id].no} wird umgestellt`); }
+    s.target = s.pos === 'str' ? 'br' : 'str';
+    return this._ok(`W ${this.nodes[id].no} läuft in ${s.target === 'str' ? 'Plus' : 'Minus'}-Stellung um`);
+  }
+  weicheHilfs(id) {                        // WHT + WT
+    const s = this.sw[id];
+    if (!this.isOccupied(id)) return this._fail(`W ${this.nodes[id].no} ist nicht als besetzt gemeldet – WGT verwenden`);
+    if (this.occ[id]) return this._fail(`W ${this.nodes[id].no} ist tatsächlich besetzt – Umstellen nicht zulässig`);
+    if (this.lock[id] || this.flankLock[id]) return this._fail(`W ${this.nodes[id].no} verschlossen`);
+    s.target = s.pos === 'str' ? 'br' : 'str'; s.force = true;
+    this.zaehler.WHZ++;
+    return this._ok(`W ${this.nodes[id].no} mit WHT umgestellt (Weichenhilfstastenzählwerk ${this.zaehler.WHZ})`, 'warn');
+  }
+  weicheSperren(id, on) {                  // WSpT/WESpT + WT
+    this.sw[id].sperre = on;
+    return this._ok(`W ${this.nodes[id].no} ${on ? 'gesperrt (WSpT)' : 'entsperrt (WESpT)'}`);
+  }
+  weicheAuffahrt(id) {                     // WAT + WT
+    const s = this.sw[id];
+    if (!s.aufgefahren) return this._fail(`W ${this.nodes[id].no} ist nicht aufgefahren`);
+    s.aufgefahren = false; this.zaehler.WAZ++;
+    this.alarm.wecker = this.alarm.wecker && this.anyFault().weiche;
+    return this._ok(`W ${this.nodes[id].no} zurückgestellt (WAT, Zählwerk ${this.zaehler.WAZ})`);
+  }
+  azGrund(el) {                            // AzGrT + Weichen-/Gleistaste
+    if (!this.fault[el]) return this._fail(`${this.label(el)}: keine Freimeldestörung`);
+    delete this.fault[el];
+    return this._ok(`${this.label(el)} in Achszählgrundstellung gebracht (AzGrT)`);
+  }
+  setAusleuchtung(on) { this.ausleuchtung = on; return this._ok(on ? 'Weichenausleuchtung ein (StET)' : 'Weichenausleuchtung aus (StAT)'); }
+  weckerAus() { this.alarm.wecker = false; return { ok: true }; }
+  hupeAus() { this.alarm.hupe = false; return { ok: true }; }
+
+  // ---------- Störungen auslösen (Instruktor) ----------
+  toggleSwitchFault(id) {
+    const s = this.sw[id];
     s.disturbed = !s.disturbed;
-    this.msg(`W ${this.nodes[swId].no}: Störung ${s.disturbed ? 'eingeleitet' : 'behoben'}`, s.disturbed ? 'err' : 'info');
-    this._emit();
+    if (!s.disturbed) { s.stoerMelder = false; s.stoerTimer = 0; this.alarm.wecker = this.alarm.wecker && Object.values(this.sw).some(x => x.stoerMelder); }
+    return this._ok(`[Störung] W ${this.nodes[id].no}: Antrieb ${s.disturbed ? 'gestört' : 'repariert'}`, s.disturbed ? 'err' : 'info');
   }
-  toggleSignalFault(sigId) {
-    const sg = this.sig[sigId];
+  switchRunOver(id) {
+    const s = this.sw[id];
+    s.aufgefahren = true; this.alarm.wecker = true;
+    return this._ok(`[Störung] W ${this.nodes[id].no} aufgefahren`, 'err');
+  }
+  toggleSignalFault(id) {
+    const sg = this.sig[id];
     sg.disturbed = !sg.disturbed;
-    if (sg.disturbed && sg.aspect !== 'Hp0') { sg.aspect = 'Hp0'; }
-    this.msg(`Signal ${this.nodes[sigId].name}: Störung ${sg.disturbed ? 'eingeleitet' : 'behoben'}`, sg.disturbed ? 'err' : 'info');
-    this._emit();
+    if (sg.disturbed) { this.alarm.hupe = true; if (OPEN.has(sg.aspect)) sg.aspect = 'Hp0'; } else this.alarm.hupe = this.alarm.hupe && Object.values(this.sig).some(x => x.disturbed);
+    return this._ok(`[Störung] Signal ${this.sname(id)}: ${sg.disturbed ? 'gestört (Signalstörmelder, Hupe)' : 'repariert'}`, sg.disturbed ? 'err' : 'info');
   }
   toggleTrackFault(el) {
     this.fault[el] ? delete this.fault[el] : (this.fault[el] = true);
-    this.msg(`${this.label(el)}: Gleisfreimeldestörung ${this.fault[el] ? 'eingeleitet' : 'behoben'}`, this.fault[el] ? 'err' : 'info');
-    this._emit();
+    return this._ok(`[Störung] ${this.label(el)}: Gleisfreimeldeanlage ${this.fault[el] ? 'gestört (rot ohne Zug)' : 'repariert'}`, this.fault[el] ? 'err' : 'info');
   }
 
   // ---------- Züge ----------
-  spawnTrain(edgeId, dir) {
+  spawnTrain(edgeId, dir, extra = {}) {
     const e = this.edges[edgeId];
     if (!e) return this._fail('Kein Gleisabschnitt');
     if (this.isOccupied(edgeId)) return this._fail(`${edgeId} ist schon besetzt`);
-    if (this.lock[edgeId]) return this._fail(`${edgeId} ist festgelegt`);
+    if (this.lock[edgeId]) return this._fail(`${edgeId} ist verschlossen`);
     const xs = e.ends.map(en => this.nodes[en.node].x);
     let toIdx = xs[0] > xs[1] ? 0 : 1;
     if (dir === 'W') toIdx = 1 - toIdx;
-    const to = e.ends[toIdx];
-    const t = { id: this._tid++, cur: { kind: 'edge', id: edgeId, to }, cells: [edgeId], wait: 0.5, state: 'ready', dir };
+    const t = { id: this._tid++, cur: { kind: 'edge', id: edgeId, to: e.ends[toIdx] }, cells: [edgeId], wait: 0.5, state: 'ready', dir, no: '', ...extra };
     this.occ[edgeId] = t.id;
     this.trains.push(t);
-    this.msg(`Zug ${t.id} auf ${edgeId} aufgestellt (${dir === 'E' ? 'Richtung Ost' : 'Richtung West'})`);
-    this._emit();
-    return { ok: true, train: t };
+    return { ...this._ok(`Zug ${t.id} auf ${edgeId} aufgestellt (${dir === 'E' ? 'Richtung Ost' : 'Richtung West'})`), train: t };
   }
-
   reverseTrain(id) {
     const t = this.trains.find(x => x.id === id);
     if (!t || t.cur.kind !== 'edge') return this._fail('Zug kann hier nicht wenden');
@@ -313,72 +372,76 @@ export class Interlocking {
     t.cells = [t.cur.id];
     t.cur = { kind: 'edge', id: t.cur.id, to };
     t.dir = t.dir === 'E' ? 'W' : 'E';
-    t.state = 'ready';
-    t.wait = 0.5;
-    this.msg(`Zug ${t.id} wendet (Fahrtrichtung ${t.dir === 'E' ? 'Ost' : 'West'})`);
-    this._emit();
-    return { ok: true };
+    t.state = 'ready'; t.wait = 0.5;
+    return this._ok(`Zug ${t.id} wendet (Richtung ${t.dir === 'E' ? 'Ost' : 'West'})`);
   }
-
   removeTrain(id) {
     const t = this.trains.find(x => x.id === id);
     if (!t) return;
-    for (const c of t.cells) delete this.occ[c];
+    for (const c of t.cells) if (this.occ[c] === t.id) delete this.occ[c];
     this.trains = this.trains.filter(x => x !== t);
-    this._emit();
   }
 
   // ---------- Zeitschritt ----------
   tick(dt) {
     this.time += dt;
-    // Weichen
     for (const [id, s] of Object.entries(this.sw)) {
       if (s.target !== s.pos) {
-        if (s.disturbed || this.isOccupied(id)) { s.moving = 0; continue; }
+        const blockedByOcc = this.isOccupied(id) && !s.force;
+        if (s.disturbed || s.aufgefahren || blockedByOcc) {
+          if (s.disturbed) {
+            s.stoerTimer += dt;
+            if (s.stoerTimer >= SWITCH_FAULT_TIME && !s.stoerMelder) {
+              s.stoerMelder = true; this.alarm.wecker = true;
+              this.msg(`W ${this.nodes[id].no}: Endstellung nicht erreicht – Weichenstörung (Wecker)`, 'err');
+            }
+          }
+          s.moving = 0; continue;
+        }
         s.moving += dt;
-        if (s.moving >= SWITCH_TIME) { s.pos = s.target; s.moving = 0; }
-      } else s.moving = 0;
+        if (s.moving >= SWITCH_TIME) { s.pos = s.target; s.moving = 0; s.force = false; s.stoerTimer = 0; }
+      } else { s.moving = 0; s.stoerTimer = 0; s.force = false; }
     }
-    // Fahrstraßen
     for (const r of this.routes.slice()) {
       const sg = this.sig[r.start];
       if (r.state === 'setting') {
         const all = [...Object.entries(r.sw), ...Object.entries(r.flank)];
-        if (all.every(([id, pos]) => this.sw[id].pos === pos && this.sw[id].target === pos)) {
-          r.state = 'locked';
-          this.msg(`Fahrstraße ${r.names} festgelegt`);
+        const free = r.elems.every(el => !this.isOccupied(el));
+        if (free && all.every(([id, pos]) => this.sw[id].pos === pos && this.sw[id].target === pos && !this.sw[id].aufgefahren)) {
+          r.state = 'locked'; r.ffm = true;
+          this.msg(`Zugstraße ${r.names} festgelegt (Festlegemelder)`);
         }
       }
-      if (r.state === 'locked' && !r.held && !r.passed && sg.aspect === 'Hp0' && !sg.disturbed && !r.fht) {
-        sg.aspect = r.diverging ? 'Hp2' : 'Hp1';
-        this.msg(`Signal ${this.nodes[r.start].name}: ${sg.aspect === 'Hp1' ? 'Fahrt (Hp 1)' : 'Langsamfahrt (Hp 2)'}`);
+      if (r.ffm) {
+        const firstSw = r.elems.find(el => this.nodes[el] && this.nodes[el].t === 'sw');
+        if (firstSw ? this.lock[firstSw] !== r.id : r.passed) r.ffm = false;
       }
-      if (r.fht != null) {
-        r.fht -= dt;
-        if (r.fht <= 0) { this._dissolve(r, true); continue; }
+      if (r.state === 'locked' && !r.held && !r.passed && sg.aspect === 'Hp0' && !sg.disturbed && !sg.sperre) {
+        sg.aspect = r.diverging ? 'Hp2' : 'Hp1';
+        this.msg(`Signal ${this.sname(r.start)}: Fahrt`);
       }
     }
-    // Züge
+    for (const [id, sg] of Object.entries(this.sig)) {
+      if (sg.aspect === 'Zs1') {
+        sg.zsTimer -= dt;
+        if (sg.zsTimer <= 0) { sg.aspect = 'Hp0'; this.msg(`Ersatzsignal ${this.sname(id)} selbsttätig erloschen`); }
+      }
+    }
     for (const t of this.trains.slice()) this._moveTrain(t, dt);
     this._releaseBehindTrains();
-    this._emit();
   }
 
-  _dissolve(r, force) {
-    for (const el of r.elems) {
-      if (this.lock[el] === r.id) {
-        if (force || !this.isOccupied(el)) delete this.lock[el];
-      }
-    }
+  _dissolve(r, force, how = 'aufgelöst') {
+    for (const el of r.elems) if (this.lock[el] === r.id && (force || !this.isOccupied(el))) delete this.lock[el];
     for (const id of Object.keys(r.flank)) {
       const f = this.flankLock[id];
       if (f && --f.count <= 0) delete this.flankLock[id];
     }
     const sg = this.sig[r.start];
     sg.route = null;
-    sg.aspect = 'Hp0';
+    sg.aspect = 'Hp0'; sg.zsTimer = 0;
     this.routes = this.routes.filter(x => x !== r);
-    this.msg(`Fahrstraße ${r.names} aufgelöst`);
+    this.msg(`Zugstraße ${r.names} ${how}`);
   }
 
   _releaseBehindTrains() {
@@ -390,13 +453,11 @@ export class Interlocking {
         if (this.lock[el] === r.id && !this.isOccupied(el)) delete this.lock[el];
       }
       if (r.progress === last) {
-        const el = r.elems[last];
-        if (this.lock[el] === r.id) delete this.lock[el];
+        if (this.lock[r.elems[last]] === r.id) delete this.lock[r.elems[last]];
       }
       const lastTrain = this.trains.find(t => t.id === this.occ[r.elems[last]]);
       if (r.progress === last && lastTrain && lastTrain.state === 'done') { this._dissolve(r, true); continue; }
-      const still = r.elems.some(el => this.lock[el] === r.id);
-      if (!still) this._dissolve(r, false);
+      if (!r.elems.some(el => this.lock[el] === r.id)) this._dissolve(r, false);
     }
   }
 
@@ -414,28 +475,24 @@ export class Interlocking {
           if (!OPEN.has(sg.aspect)) { t.state = 'halt'; return; }
           t.state = 'run';
           const r = this.routeOf(N.id);
-          if (r) { r.passed = true; }
-          sg.aspect = 'Hp0'; // Signalrückfall
+          if (r) r.passed = true;
+          sg.aspect = 'Hp0'; sg.zsTimer = 0;
         }
-        const out = cur.to.port === 'w' ? 'e' : 'w';
-        const nx = this._across(N.id, out);
+        const nx = this._across(N.id, cur.to.port === 'w' ? 'e' : 'w');
         this._enterEdge(t, nx.edge, { node: nx.node, port: nx.port });
         return;
       }
-      // Weiche
       const s = this.sw[N.id];
       const p = cur.to.port;
-      if (s.target !== s.pos) { t.state = 'halt'; return; }
+      if (s.target !== s.pos || s.aufgefahren) { t.state = 'halt'; return; }
       if (p !== 'stem' && s.pos !== p) { t.state = 'halt'; return; }
-      if (this.isOccupied(N.id) && this.occ[N.id] !== t.id) { t.state = 'halt'; return; }
-      const outPort = p === 'stem' ? s.pos : 'stem';
+      if (this.occ[N.id] && this.occ[N.id] !== t.id) { t.state = 'halt'; return; }
       t.state = 'run';
       this._occupy(t, N.id);
-      t.cur = { kind: 'sw', id: N.id, out: outPort };
+      t.cur = { kind: 'sw', id: N.id, out: p === 'stem' ? s.pos : 'stem' };
       t.wait = 0.5;
       return;
     }
-    // aktuell auf Weiche: in Folgekante
     const nx = this._across(cur.id, cur.out);
     this._enterEdge(t, nx.edge, { node: nx.node, port: nx.port });
   }
@@ -453,9 +510,6 @@ export class Interlocking {
     t.cells.push(el);
     while (t.cells.length > 2) { const old = t.cells.shift(); if (this.occ[old] === t.id) delete this.occ[old]; }
     const r = this.routes.find(x => x.id === this.lock[el]);
-    if (r) {
-      const i = r.elems.indexOf(el);
-      if (i > r.progress) r.progress = i;
-    }
+    if (r) { const i = r.elems.indexOf(el); if (i > r.progress) r.progress = i; }
   }
 }
