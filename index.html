@@ -5,16 +5,17 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
 <meta name="theme-color" content="#0b0f14">
 <meta name="apple-mobile-web-app-capable" content="yes">
-<title>Spdr L60 – Kaiserslautern Hbf (Westkopf)</title>
+<title>Sp Dr 60 – Kaiserslautern Hbf (Westkopf)</title>
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icon.svg">
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
 <header>
-  <div class="title"><b>Spdr&nbsp;L60</b> · Kaiserslautern Hbf <span class="sub">Westkopf · Version&nbsp;1</span></div>
+  <div class="title"><b>Sp&nbsp;Dr&nbsp;60</b> · Kaiserslautern Hbf <span class="sub">Westkopf · Version&nbsp;2</span></div>
   <div class="hdr-right">
     <span id="clock">00:00</span>
+    <button id="btn-window" class="small" title="Zeitfenster für die Zweitastenbedienung">Zeitfenster 5 s</button>
     <button id="btn-speed" class="small" title="Simulationsgeschwindigkeit">1×</button>
     <button id="btn-reset" class="small">Neustart</button>
     <button id="btn-help" class="small">Hilfe</button>
@@ -23,46 +24,85 @@
 
 <main>
   <svg id="plan" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid meet"></svg>
-  <div id="legend">Tipp: Signal antippen (Start), dann leuchtendes Ziel antippen. Zwei Finger = zoomen, ein Finger = verschieben.</div>
+  <div id="legend">Zugstraße: Starttaste (Signal) → Zieltaste (blinkt). Gruppentaste: erst Gruppentaste, dann Objekt. Zwei Finger = zoomen.</div>
 </main>
 
 <section id="panel">
-  <div id="meldung" class="meldung">Bereit.</div>
+  <div class="top">
+    <div id="meldung" class="meldung">Bereit.</div>
+    <div class="lamps" id="lamps"></div>
+  </div>
   <div class="keys">
-    <div class="group">
-      <span class="gl">Hilfsbedienung</span>
-      <button data-mode="FHT" title="Fahrstraßen-Hilfsauflösetaste">FHT<small>Hilfsauflösen</small></button>
-      <button data-mode="SHT" title="Signal-Haltfalltaste">SHT<small>Signal Halt</small></button>
-      <button data-mode="EGT" title="Ersatzsignaltaste">EGT<small>Ersatzsignal</small></button>
-      <button data-mode="WT" title="Weichen-Einzelumstellung">WT<small>Weiche umstellen</small></button>
+    <div class="group g-w"><span class="gl">Weichen</span>
+      <button data-key="WGT">WGT<small>umstellen</small></button>
+      <button data-key="WHT">WHT<small>Hilfstaste</small></button>
+      <button data-key="WAT">WAT<small>Auffahrt</small></button>
+      <button data-key="WSpT">WSpT<small>sperren</small></button>
+      <button data-key="WESpT">WESpT<small>entsperren</small></button>
     </div>
-    <div class="group">
-      <span class="gl">Störung auslösen</span>
-      <button data-mode="STW">Weiche</button>
-      <button data-mode="STS">Signal</button>
-      <button data-mode="STG">Gleis<small>Freimeldung</small></button>
+    <div class="group g-s"><span class="gl">Signale</span>
+      <button data-key="HaGT">HaGT<small>Signal Halt</small></button>
+      <button data-key="ErsGT">ErsGT<small>Ersatzsignal</small></button>
+      <button data-key="LsSpT">LsSpT<small>sperren</small></button>
+      <button data-key="LsESpT">LsESpT<small>entsperren</small></button>
     </div>
-    <div class="group">
-      <span class="gl">Züge</span>
+    <div class="group g-f"><span class="gl">Fahrstraßen</span>
+      <button data-key="FHT">FHT<small>Hilfsauflösen</small></button>
+      <button data-key="FRT">FRT<small>Rücknahme</small></button>
+      <button disabled title="Durchrutschweg in Version 3 nicht abgebildet">DHT<small>D-Weg</small></button>
+    </div>
+    <div class="group g-t"><span class="gl">Stelltisch</span>
+      <button id="btn-bft">BfT<small>Bahnhofstaste</small></button>
+      <button id="btn-ausl">Ausl.<small>StET/StAT</small></button>
+      <button data-key="AzGrT">AzGrT<small>Achszähler</small></button>
+      <button id="btn-wut">WUT<small>Wecker aus</small></button>
+      <button id="btn-hut">HuT<small>Hupe aus</small></button>
+    </div>
+  </div>
+  <div class="keys second">
+    <div class="group g-z"><span class="gl">Zählwerke</span><div id="zaehler" class="zaehler"></div></div>
+    <div class="group"><span class="gl">Züge</span>
       <button id="btn-dir" class="dir">→ Ost</button>
-      <button data-mode="ZUG">Zug einsetzen</button>
-      <button data-mode="WENDEN">Zug wenden</button>
-      <button data-mode="ENTF">Zug entfernen</button>
+      <button data-mode="ZUG">einsetzen</button>
+      <button data-mode="WENDEN">wenden</button>
+      <button data-mode="ENTF">entfernen</button>
     </div>
-    <div class="group grow">
-      <span class="gl">Fahrstraßen</span>
-      <div id="routes">–</div>
+    <div class="group g-n"><span class="gl">Nummernstellpult</span>
+      <span id="nstp-disp" class="nstp-disp">––––</span>
+      <span class="keypad">
+        <button data-num="1">1</button><button data-num="2">2</button><button data-num="3">3</button><button data-num="4">4</button><button data-num="5">5</button>
+        <button data-num="6">6</button><button data-num="7">7</button><button data-num="8">8</button><button data-num="9">9</button><button data-num="0">0</button>
+        <button data-num="C">C</button>
+      </span>
+      <button data-mode="NUM">Nr. setzen</button>
+      <button data-mode="NUMDEL">Nr. löschen</button>
     </div>
+    <div class="group g-b"><span class="gl">Fahrplanbetrieb</span>
+      <button id="btn-betrieb">Betrieb: aus</button>
+      <span id="score" class="score">✔ 0 · ✖ 0 · Verspätung 0 min</span>
+      <div id="zugliste" class="zugliste">–</div>
+    </div>
+    <div class="group g-i"><span class="gl">Störung auslösen</span>
+      <button data-mode="STW">Weiche</button>
+      <button data-mode="AUFF">auffahren</button>
+      <button data-mode="STS">Signal</button>
+      <button data-mode="STG">Gleis</button>
+    </div>
+    <div class="group grow"><span class="gl">Fahrstraßen</span><div id="routes">–</div></div>
   </div>
 </section>
 
 <dialog id="help">
-  <h2>Bedienung</h2>
-  <p><b>Fahrstraße einstellen:</b> Startsignal antippen (z.&nbsp;B. D, CC, C, A bei Einfahrt, P39–P105 bei Ausfahrt). Mögliche Ziele leuchten blau, dann Ziel antippen. Weichen laufen um, das Signal öffnet, sobald die Fahrstraße festgelegt ist.</p>
-  <p><b>Züge:</b> „Zug einsetzen“, Fahrtrichtung wählen und einen Gleisabschnitt antippen. Der Zug fährt los, sobald das Signal Fahrt zeigt. Am Ziel stehen bleibt er stehen; mit „Zug wenden“ kann er in Gegenrichtung ausfahren.</p>
-  <p><b>Gleisbild:</b> grau = frei · weiß = Fahrstraße festgelegt · rot = besetzt. Signal grün = Hp 1, grün/gelb = Hp 2 (Abzweig), weißes Licht = Zs 1.</p>
-  <p><b>Hilfsbedienungen:</b> FHT löst eine Fahrstraße nach Wartezeit auf (Signal muss auf Halt sein, ggf. erst SHT). EGT gibt Ersatzsignal Zs&nbsp;1 bei gestörtem Signal. WT stellt eine freie, nicht festgelegte Weiche einzeln um. Unter „Störung auslösen“ lassen sich Weichen-, Signal- und Gleisfreimeldestörungen erzeugen.</p>
-  <p class="warn"><b>Hinweis:</b> Das Gleisbild wurde aus dem Plan „Serviceeinrichtungen Kaiserslautern Hbf“ übertragen und ist nicht amtlich geprüft. Fahrstraßen und Flankenschutz werden aus der Topologie berechnet, nicht aus der echten Fahrstraßentabelle. Ortsstellbereiche, Werk und Ostkopf fehlen in Version 1.</p>
+  <h2>Bedienung (nach Ril 482.9009, Sp Dr 60)</h2>
+  <p><b>Zugstraße einstellen:</b> Starttaste (Signal antippen), innerhalb des Zeitfensters die Zieltaste (blinkende Dreiecke). Die Weichen laufen um, bei gesichertem Fahrweg und Flankenschutz leuchtet der Festlegemelder (gelbes Quadrat am Signal) und das Signal kommt selbsttätig auf Fahrt.</p>
+  <p><b>Gruppentasten:</b> Erst die Gruppentaste drücken (leuchtet), dann innerhalb des Zeitfensters das Objekt antippen. Beispiele: <b>HaGT</b> + Signal = Halt · <b>WGT</b> + Weiche = einzeln umstellen · <b>FHT</b> + Start + Ziel = Zugstraße hilfsauflösen (Signal vorher auf Halt) · <b>FHT</b> + Weiche/Gleis = Einzelauflösung · <b>FRT</b> + Start + Ziel = Zugstraße zurücknehmen (nur solange der Festlegemelder dunkel ist).</p>
+  <p><b>Ersatzsignal:</b> Zugstraße muss festgelegt sein. Vorher Weichenlaufkette sperren (<b>WSpT</b> dann <b>BfT</b>), dann <b>ErsGT</b> + Signal. Zs 1 erlischt nach 90 s oder zugbewirkt. Entsperren: <b>WESpT</b> + <b>BfT</b>.</p>
+  <p><b>Weichen:</b> Als besetzt gemeldete Weichen lassen sich nur mit <b>WHT</b> umstellen (nach Augenschein). Bei Freimeldestörung setzt <b>AzGrT</b> + Weiche/Gleis zurück. Aufgefahrene Weiche: <b>WAT</b> + Weiche. Ohne „Ausl.“ (Weichenausleuchtung) leuchten freie Weichen nicht – wie am Stelltisch.</p>
+  <p><b>Melder:</b> gelb = im Fahrweg/verschlossen · rot = besetzt · Weiche blinkt gelb = läuft um · rot blinkend = Störung. Signal: rot = Halt, grün = Fahrt, weißes Dreieck = Zs 1, gelber Ring = gesperrt.</p>
+  <p><b>Störungen:</b> Unter „Störung auslösen“ lassen sich Weichen-, Signal-, Freimelde- und Auffahrstörungen erzeugen. Wecker (WUT) und Hupe (HuT) lassen sich abstellen, die Störmelder bleiben bis zur Behebung.</p>
+  <p class="warn"><b>Hinweis:</b> Das Gleisbild wurde aus dem Plan „Serviceeinrichtungen Kaiserslautern Hbf“ übertragen und ist nicht amtlich geprüft. Fahrstraßen und Flankenschutz werden berechnet, nicht aus der echten Verschlusstabelle. Nicht abgebildet: Durchrutschweg, Rangierstraßen, Zughilfsstraßen, Umfahrstraßen, Nahstellbetrieb. Ortsstellbereiche, Werk und Ostkopf fehlen noch.</p>
+  <p><b>Fahrplanbetrieb:</b> „Betrieb“ schaltet zwischen aus / ruhig / normal / dicht. Dann kommen Züge mit Zugnummer: Einfahrten aus Lauterecken, Homburg und Pirmasens warten vor ihrem Signal und wollen in ein bestimmtes Gleis (steht in der Zugliste und in der Meldezeile). Angekommene Züge wenden nach einiger Zeit und wollen nach Westen. Falsch geleitete Züge zählen als ✖, Wartezeit vor Signalen als Verspätung.</p>
+  <p><b>Nummernstellpult:</b> Ziffern eintippen, „Nr. setzen“ wählen und Zug oder besetztes Gleis antippen. „Nr. löschen“ entfernt die Nummer. Die Nummer wandert mit dem Zug (Zugnummernmeldeanlage).</p>
   <form method="dialog"><button>Schließen</button></form>
 </dialog>
 

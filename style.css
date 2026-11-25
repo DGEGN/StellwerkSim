@@ -30,3 +30,31 @@ dialog::backdrop { background:rgba(0,0,0,.6); } dialog h2 { margin-top:0; } dial
 @keyframes pulse { 0%,100% { opacity:1 } 50% { opacity:.35 } }
 .pulse { animation:pulse 1s infinite; }
 @media (max-height:620px) { .gl { display:none; } .group { padding-top:4px; } button { min-height:38px; padding:5px 9px; } }
+
+/* ---- Version 2 ---- */
+#panel { max-height: 44vh; overflow: auto; }
+.top { display:flex; gap:10px; align-items:center; }
+.top .meldung { flex:1; }
+.lamps { display:flex; gap:6px; }
+.lamp { font-size:10px; font-weight:700; padding:3px 7px; border-radius:5px; border:1px solid #2f3d4f; color:#556070; background:#0b1118; letter-spacing:.3px; }
+.lamp.yellow { color:#111; background:#facc15; border-color:#facc15; }
+.lamp.red { color:#fff; background:#dc2626; border-color:#dc2626; }
+.lamp.blink { animation: pulse .8s infinite; }
+.keys.second { margin-top:6px; }
+.group.g-w { border-top:3px solid #3b82f6; } .group.g-s { border-top:3px solid #ef4444; }
+.group.g-f { border-top:3px solid #22c55e; } .group.g-t { border-top:3px solid #9ca3af; }
+.group.g-z { border-top:3px solid #a8814f; } .group.g-i { border-top:3px dashed #f59e0b; }
+.keys button { min-height:40px; padding:4px 9px; font-size:13px; }
+button:disabled { opacity:.35; cursor:default; }
+.zaehler { display:grid; grid-template-columns:repeat(3, auto); gap:2px 12px; font:12px ui-monospace, Menlo, Consolas, monospace; }
+.zaehler b { color:#e5e7eb; letter-spacing:1px; } .zaehler span { color:#8b98a8; }
+button.pend { background:#a855f7; border-color:#a855f7; color:#fff; } button.pend small { color:#f3e8ff; }
+
+/* V3 */
+.g-n{border-top:3px solid #a855f7}.g-b{border-top:3px solid #14b8a6}
+.nstp-disp{display:inline-block;min-width:58px;padding:6px 8px;margin-right:6px;background:#000;color:#fbbf24;font:700 18px ui-monospace,monospace;letter-spacing:3px;text-align:center;border-radius:4px;border:1px solid #333}
+.keypad{display:inline-grid;grid-template-columns:repeat(11,30px);gap:3px;margin-right:6px;vertical-align:middle}
+.keypad button{padding:7px 0;min-width:0;font-size:13px}
+.score{display:block;font-size:12px;color:#9fb0c3;margin:4px 0}
+.zugliste{font-size:12px;max-width:240px;max-height:70px;overflow:auto;line-height:1.5}
+.zugliste b{color:#e5e7eb}.zugliste .h{color:#f59e0b}
