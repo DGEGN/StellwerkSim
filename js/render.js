@@ -1,4 +1,5 @@
 // Zeichnung des Gleisbilds im Stil des Stelltischbilds (Pixelkoordinaten des Vorlagebildes)
+const TRAIN_LEN = 84;
 const BG = '#d0d0d0', GREY_BLOCK = '#aaaaaa', CORE = '#767676';
 const C_LOCK = '#f2d300', C_OCC = '#ff2a1a';
 const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
@@ -162,22 +163,59 @@ export function renderDynamic(il, ui) {
       const lx = n.lab === 'l' ? n.x - 7 - w : n.x + 7;
       out.push(box(lx, n.y - 5.5, w, 11), `<text x="${lx + w / 2}" y="${n.y + 3.5}" text-anchor="middle" font-size="9.6" ${FONT} fill="#222">${n.name}</text>`);
     }
-    out.push(`<circle cx="${n.x}" cy="${n.y}" r="5.4" fill="${open ? '#e6e6e6' : '#ee1111'}" stroke="${sel ? '#a855f7' : '#220000'}" stroke-width="${sel ? 2.8 : 1.7}"${sel ? ' class="pulse"' : ''}/>`);
-    if (isT) out.push(`<circle cx="${n.x}" cy="${n.y}" r="9.5" fill="none" stroke="#a855f7" stroke-width="2.6" class="pulse"/>`);
+    // rote Zugstraßentaste (immer rot hinterlegt)
+    const selZ = ui.start === n.id && ui.kind !== 'rangier';
+    out.push(`<circle cx="${n.x}" cy="${n.y}" r="5.6" fill="#ee1111" stroke="${selZ ? '#a855f7' : '#220000'}" stroke-width="${selZ ? 2.8 : 1.7}"${selZ ? ' class="pulse"' : ''}/>`);
+    const zTgt = tgt.has(n.id) && ui.kind !== 'rangier';
+    if (zTgt) out.push(`<circle cx="${n.x}" cy="${n.y}" r="9.5" fill="none" stroke="#a855f7" stroke-width="2.6" class="pulse"/>`);
+    // graue Rangiertaste am Signalbild
+    if (!n.nolamp && !n.vertical) {
+      const rx = n.dir === 'E' ? n.x - 16 : n.x + 17, ry = n.dir === 'E' ? n.y + 9 : n.y - 9;
+      const selR = ui.start === n.id && ui.kind === 'rangier';
+      const rTgt = tgt.has(n.id) && ui.kind === 'rangier';
+      out.push(`<rect x="${rx - 3.5}" y="${ry - 3.5}" width="7" height="7" fill="${selR || rTgt ? '#d9b8ff' : '#9a9a9a'}" stroke="${selR || rTgt ? '#a855f7' : '#111'}" stroke-width="${selR || rTgt ? 2.2 : 1.4}"${selR || rTgt ? ' class="pulse"' : ''}/>`);
+      out.push(`<circle data-k="rsig" data-id="${n.id}" cx="${rx}" cy="${ry}" r="9" fill="transparent"/>`);
+    }
     if (r && r.ffm) out.push(sq(n.x + 8, n.y - 9, C_LOCK, 6));
-    out.push(`<circle data-k="sig" data-id="${n.id}" cx="${n.x}" cy="${n.y + (n.vertical ? 0 : n.dir === 'E' ? 4 : -4)}" r="13" fill="transparent"/>`);
+    out.push(`<circle data-k="sig" data-id="${n.id}" cx="${n.x}" cy="${n.y + (n.vertical ? 0 : n.dir === 'E' ? 3 : -3)}" r="9" fill="transparent"/>`);
   }
-  // Züge
+  // Züge: Balken entlang des Gleises, passt zwischen die Signale
+  const along = (pts, d0, d1) => {
+    const res = []; let acc = 0;
+    for (let i = 1; i < pts.length; i++) {
+      const [x0, y0] = pts[i - 1], [x1, y1] = pts[i], L = Math.hypot(x1 - x0, y1 - y0);
+      const a = Math.max(d0, acc), b = Math.min(d1, acc + L);
+      if (b > a) {
+        if (!res.length) res.push([x0 + (x1 - x0) * (a - acc) / L, y0 + (y1 - y0) * (a - acc) / L]);
+        res.push([x0 + (x1 - x0) * (b - acc) / L, y0 + (y1 - y0) * (b - acc) / L]);
+      }
+      acc += L;
+    }
+    return res;
+  };
   for (const t of il.trains) {
     const c = t.cur;
-    let x, y;
+    let x, y, bar = null;
     if (c.kind === 'edge') {
-      const pp = il.edges[c.id].pts;
-      [x, y] = pp.length === 2 ? [(pp[0][0] + pp[1][0]) / 2, (pp[0][1] + pp[1][1]) / 2] : pp[Math.floor(pp.length / 2)];
+      const e = il.edges[c.id];
+      let pp = e.pts;
+      if (!(e.ends[1].node === c.to.node && e.ends[1].port === c.to.port)) pp = pp.slice().reverse();   // Fahrtrichtung: Ende = Ziel
+      let L = 0; for (let i = 1; i < pp.length; i++) L += Math.hypot(pp[i][0] - pp[i - 1][0], pp[i][1] - pp[i - 1][1]);
+      const len = Math.min(TRAIN_LEN, Math.max(14, L - 10));
+      const atEnd = t.state === 'halt' || t.state === 'done';
+      const mid = atEnd ? L - 5 - len / 2 : L / 2;
+      bar = along(pp, mid - len / 2, mid + len / 2);
+      [x, y] = bar[Math.floor(bar.length / 2)] || pp[0];
     } else [x, y] = [il.nodes[c.id].x, il.nodes[c.id].y];
     const col = t.state === 'done' ? '#94a3b8' : t.state === 'halt' ? '#f59e0b' : '#38bdf8';
     const lab = t.no || t.id, hw = Math.max(13, String(lab).length * 4.2 + 5);
-    out.push(`<g data-k="train" data-id="${t.id}"><rect x="${x - hw}" y="${y - 17}" width="${hw * 2}" height="11" rx="3" fill="${col}" stroke="#0b0f14" stroke-width="1.2"/><text x="${x}" y="${y - 9}" font-size="8.6" font-weight="800" text-anchor="middle" fill="#06222f" ${FONT}>${lab}</text></g>`);
+    let g = '';
+    if (bar && bar.length > 1) {
+      const dd = 'M' + bar.map(p => p.join(',')).join(' L');
+      g += `<path d="${dd}" fill="none" stroke="#0b0f14" stroke-width="9.5" stroke-linecap="round" stroke-linejoin="round"/><path d="${dd}" fill="none" stroke="${col}" stroke-width="6.5" stroke-linecap="round" stroke-linejoin="round"/>`;
+    }
+    g += `<rect x="${x - hw}" y="${y - 19}" width="${hw * 2}" height="11" rx="3" fill="${col}" stroke="#0b0f14" stroke-width="1.2"/><text x="${x}" y="${y - 11}" font-size="8.6" font-weight="800" text-anchor="middle" fill="#06222f" ${FONT}>${lab}</text>`;
+    out.push(`<g data-k="train" data-id="${t.id}">${g}</g>`);
   }
   return out.join('');
 }

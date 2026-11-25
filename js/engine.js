@@ -10,7 +10,8 @@ export const SWITCH_TIME = 3.5;     // s Weichenumlauf (Ril: i. d. R. 3–5 s)
 export const SWITCH_FAULT_TIME = 6; // s bis Weichenstörung gemeldet wird (Ril §11)
 export const ERSATZ_TIME = 90;      // s bis Ersatzsignal selbsttätig erlischt (Ril §6 Abs. 6)
 export const KEY_WINDOW = 5;        // s Zeitfenster für Folgebedienung (Ril §7)
-const OPEN = new Set(['Hp1', 'Hp2', 'Zs1']);
+const OPEN = new Set(['Hp1', 'Hp2', 'Zs1', 'Sh1']);
+export const MIN_ZUG_LEN = 150;   // Zugstraße zu einem Signal nur, wenn ein Zug in den Abschnitt passt (Pixel im Gleisbild)
 
 export class Interlocking {
   constructor(data) {
@@ -88,7 +89,7 @@ export class Interlocking {
   }
 
   // ---------- Fahrwegsuche ----------
-  findPath(startSig, targetId) {
+  findPath(startSig, targetId, rangier = false) {
     const S = this.nodes[startSig];
     if (!S || S.t !== 'sig') return null;
     const first = this._across(startSig, S.dir === 'E' ? 'e' : 'w');
@@ -111,6 +112,7 @@ export class Interlocking {
           if (N.id === targetId) return { elems: cur.elems, sw: cur.sw, br: cur.br, end: N.id };
           continue;
         }
+        if (rangier && N.id === targetId) return { elems: cur.elems, sw: cur.sw, br: cur.br, end: N.id };
         const nx = this._across(N.id, cur.port === 'w' ? 'e' : 'w');
         pq.push({ ...cur, cost: cur.cost + 1, node: nx.node, port: nx.port, elems: [...cur.elems, nx.edge] });
         continue;
@@ -131,8 +133,25 @@ export class Interlocking {
     return null;
   }
 
-  validTargets(startSig) {
-    return Object.values(this.nodes).filter(n => (n.t === 'term' || (n.t === 'sig' && n.zt && n.id !== startSig)) && this.findPath(startSig, n.id)).map(n => n.id);
+  pathLength(elems) {
+    let L = 0;
+    for (const id of elems) {
+      const e = this.edges[id];
+      if (!e) continue;
+      for (let i = 1; i < e.pts.length; i++) L += Math.hypot(e.pts[i][0] - e.pts[i - 1][0], e.pts[i][1] - e.pts[i - 1][1]);
+    }
+    return L;
+  }
+  validTargets(startSig, kind = 'zug') {
+    const rg = kind === 'rangier';
+    return Object.values(this.nodes).filter(n => {
+      if (n.id === startSig) return false;
+      if (n.t === 'term') { if (rg && n.hidden) return false; }
+      else if (n.t !== 'sig' || (!rg && !n.zt)) return false;
+      const p = this.findPath(startSig, n.id, rg);
+      if (!p) return false;
+      return rg || n.t === 'term' || this.pathLength(p.elems) >= MIN_ZUG_LEN;
+    }).map(n => n.id);
   }
 
   // Flankenschutz-Bedarf
@@ -165,7 +184,8 @@ export class Interlocking {
   }
 
   // ---------- Zugstraße einstellen (Starttaste + Zieltaste) ----------
-  request(startSig, targetId) {
+  request(startSig, targetId, kind = 'zug') {
+    const rg = kind === 'rangier';
     const sg = this.sig[startSig];
     if (!sg) return this._fail('Unbekanntes Signal');
     const name = this.sname(startSig);
@@ -173,8 +193,9 @@ export class Interlocking {
     const label = `${name} → ${tname}`;
     if (sg.route) return this._fail(`Signal ${name}: Fahrstraße bereits eingestellt`);
     if (sg.sperre) return this._fail(`Signal ${name} ist gesperrt`);
-    const path = this.findPath(startSig, targetId);
-    if (!path) return this._fail(`${label}: Zugstraße nicht vorhanden`);
+    const path = this.findPath(startSig, targetId, rg);
+    if (!path) return this._fail(`${label}: ${rg ? 'Rangierstraße' : 'Zugstraße'} nicht vorhanden`);
+    if (!rg && this.nodes[targetId].t === 'sig' && this.pathLength(path.elems) < MIN_ZUG_LEN) return this._fail(`${label}: Zugstraße nicht möglich – Zug passt nicht in den Abschnitt (Rangierstraße verwenden)`);
     for (const el of path.elems) {
       if (this.isOccupied(el)) return this._fail(`${label}: ${this.label(el)} besetzt – Zugstraße läuft nicht ein`);
       if (this.lock[el]) return this._fail(`${label}: ${this.label(el)} in anderer Fahrstraße (Fahrstraßenausschluss)`);
@@ -200,7 +221,7 @@ export class Interlocking {
     }
     const route = {
       id: this._rid++, start: startSig, target: targetId, elems: path.elems, sw: path.sw,
-      flank: flankOk, diverging: path.br > 0, state: 'setting', progress: -1, unprotected,
+      kind, flank: flankOk, diverging: path.br > 0, state: 'setting', progress: -1, unprotected,
       names: label, ffm: false,
     };
     for (const el of route.elems) this.lock[el] = route.id;
@@ -213,7 +234,7 @@ export class Interlocking {
     }
     sg.route = route.id;
     this.routes.push(route);
-    this.msg(`Zugstraße ${label} läuft ein` + (unprotected.length ? ` – kein Flankenschutz an ${unprotected.join(', ')}` : ''), unprotected.length ? 'warn' : 'info');
+    this.msg(`${rg ? 'Rangierstraße' : 'Zugstraße'} ${label} läuft ein` + (unprotected.length ? ` – kein Flankenschutz an ${unprotected.join(', ')}` : ''), unprotected.length ? 'warn' : 'info');
     return { ok: true, route };
   }
 
@@ -417,7 +438,7 @@ export class Interlocking {
         if (firstSw ? this.lock[firstSw] !== r.id : r.passed) r.ffm = false;
       }
       if (r.state === 'locked' && !r.held && !r.passed && sg.aspect === 'Hp0' && !sg.disturbed && !sg.sperre) {
-        sg.aspect = r.diverging ? 'Hp2' : 'Hp1';
+        sg.aspect = r.kind === 'rangier' ? 'Sh1' : r.diverging ? 'Hp2' : 'Hp1';
         this.msg(`Signal ${this.sname(r.start)}: Fahrt`);
       }
     }

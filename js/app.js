@@ -33,7 +33,7 @@ function reset() {
   bt = new Betrieb(il);
   fp = new Fahrplanbetrieb(il);
   numBuf = '';
-  ui = { start: null, startUntil: 0, pending: null, mode: null, dir: 'E', targets: [] };
+  ui = { start: null, startUntil: 0, pending: null, mode: null, dir: 'E', kind: 'zug', targets: [] };
   document.querySelectorAll('[data-mode],[data-key]').forEach(b => b.classList.remove('on', 'pend'));
   setBtnDir();
   il.msg('Neustart. Starttaste (Signal) und Zieltaste bedienen.');
@@ -97,7 +97,7 @@ function drawPanel() {
 
 // ---------- Bedienung ----------
 const deadline = () => windowSec ? now() + windowSec * 1000 : Infinity;
-function clearPending() { ui.pending = null; ui.start = null; ui.targets = []; }
+function clearPending() { ui.pending = null; ui.start = null; ui.kind = 'zug'; ui.targets = []; }
 
 function pressKey(key) {
   if (ui.pending && ui.pending.key === key) { clearPending(); draw(); return; }
@@ -124,14 +124,14 @@ function tapPending(k, id) {
     case 'WAT': k === 'sw' ? il.weicheAuffahrt(id) : bad(); break;
     case 'WSpT': k === 'sw' ? il.weicheSperren(id, true) : bad(); break;
     case 'WESpT': k === 'sw' ? il.weicheSperren(id, false) : bad(); break;
-    case 'HaGT': k === 'sig' ? il.signalHalt(id) : bad(); break;
-    case 'ErsGT': k === 'sig' ? il.ersatzsignal(id) : bad(); break;
-    case 'LsSpT': k === 'sig' ? il.signalSperren(id) : bad(); break;
-    case 'LsESpT': k === 'sig' ? il.signalEntsperren(id) : bad(); break;
+    case 'HaGT': (k === 'sig' || k === 'rsig') ? il.signalHalt(id) : bad(); break;
+    case 'ErsGT': (k === 'sig' || k === 'rsig') ? il.ersatzsignal(id) : bad(); break;
+    case 'LsSpT': (k === 'sig' || k === 'rsig') ? il.signalSperren(id) : bad(); break;
+    case 'LsESpT': (k === 'sig' || k === 'rsig') ? il.signalEntsperren(id) : bad(); break;
     case 'AzGrT': (k === 'sw' || k === 'edge') ? il.azGrund(id) : bad(); break;
     case 'FHT':
     case 'FRT':
-      if (k === 'sig') {
+      if (k === 'sig' || k === 'rsig') {
         const r = il.routeOf(id);
         if (!r) il.msg(`Signal ${il.nodes[id].name}: keine Fahrstraße eingestellt`, 'err');
         else { p.start = id; ui.targets = [r.target]; p.until = deadline(); done = false; il.msg(`${p.key}: Zieltaste bedienen`); }
@@ -163,19 +163,20 @@ function tap(k, id) {
     else if (m === 'ENTF' && k === 'train') { il.removeTrain(+id); ui.mode = null; }
     else if (m === 'STW' && k === 'sw') { il.toggleSwitchFault(id); ui.mode = null; }
     else if (m === 'AUFF' && k === 'sw') { il.switchRunOver(id); ui.mode = null; }
-    else if (m === 'STS' && k === 'sig') { il.toggleSignalFault(id); ui.mode = null; }
+    else if (m === 'STS' && (k === 'sig' || k === 'rsig')) { il.toggleSignalFault(id); ui.mode = null; }
     else if (m === 'STG' && (k === 'edge' || k === 'sw')) { il.toggleTrackFault(id); ui.mode = null; }
     else il.msg('Hier nicht möglich – anderes Objekt antippen oder Taste erneut drücken.', 'warn');
     draw();
     return;
   }
-  if (k === 'sig') {
-    if (ui.start === id) { clearPending(); }
-    else if (il.sig[id].route) il.msg(`Signal ${il.nodes[id].name}: Fahrstraße bereits eingestellt`, 'warn');
-    else { ui.start = id; ui.startUntil = deadline(); ui.targets = il.validTargets(id); il.msg(`Starttaste ${il.nodes[id].name}: Zieltaste bedienen`); }
-  } else if (k === 'term' && ui.start) {
-    il.request(ui.start, id);
+  const kind = k === 'rsig' ? 'rangier' : 'zug';
+  if (ui.start && (k === 'term' || k === 'sig' || k === 'rsig') && id !== ui.start && ui.targets.includes(id) && (k === 'term' || (ui.kind === 'rangier' ? (k === 'rsig' || k === 'sig') : k === 'sig'))) {
+    il.request(ui.start, id, ui.kind);
     clearPending();
+  } else if (k === 'sig' || k === 'rsig') {
+    if (ui.start === id && ui.kind === kind) { clearPending(); }
+    else if (il.sig[id].route) il.msg(`Signal ${il.nodes[id].name}: Fahrstraße bereits eingestellt`, 'warn');
+    else { ui.start = id; ui.kind = kind; ui.startUntil = deadline(); ui.targets = il.validTargets(id, kind); il.msg(`${kind === 'rangier' ? 'Rangiertaste' : 'Zugstraßentaste'} ${il.nodes[id].name}: Zieltaste bedienen`); }
   } else if (ui.start) clearPending();
   draw();
 }
