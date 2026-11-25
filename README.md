@@ -1,4 +1,4 @@
-# Sp Dr 60 – Kaiserslautern Hbf (Gesamtanlage nach Stelltischbild), Version 6
+# Sp Dr 60 – Kaiserslautern Hbf (Gesamtanlage nach Stelltischbild), Version 7
 
 Tablet-Simulation eines Spurplan-Drucktastenstellwerks (Sp Dr 60) als statische Web-App.
 Bedienlogik und Melderzustände orientieren sich an der Ril 482.9009 (das Dokument selbst ist nicht Teil des Repositories).
@@ -41,3 +41,8 @@ Läuft ohne Server, ohne Build-Schritt – einfach über GitHub Pages hosten.
 - Zusätzlich im Gleisbild (nicht im Plan vorhanden, nötig für den Fahrplan): Signale P108, P110, N120; Weichen 048, 057, 058 (Überleitung Gl. 40 ↔ Homburg, Gl. 110 ↔ Westkopf).
 - `tests/test-fahrplan.mjs <mf|sa|so> <von h> <bis h>`: Bot fährt einen ganzen Tag (alle drei Tage: 0 falsch, 0 ausgefallen).
 - Noch nicht enthalten: Werk/Abstellanlagen, Gleise 109/119/162–190, Durchrutschweg, Rangierstraßen, Eselsfürth.
+
+## Tasten am Signal (Version 7)
+- **Rote Taste** (Kreis im Gleis): Zugstraße. Starttaste, dann Zieltaste (blinkt). Zugstraßen zu einem Signal gibt es nur, wenn der Abschnitt mindestens 150 Bildpunkte lang ist (Zug passt hinein).
+- **Graue Taste** (Quadrat am Signalbild): Rangierstraße, beliebig kurz, Signal zeigt Sh 1 (weiß). Zieltaste: graue Taste des Zielsignals oder Gleisende.
+- Züge werden als Balken mit Länge dargestellt.
