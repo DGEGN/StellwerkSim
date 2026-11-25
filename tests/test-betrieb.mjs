@@ -15,7 +15,9 @@ for (let step = 0; step < 4000 * 4; step++) {
     if (h) il.request(n.id, h);
   }
 }
+const _w=[];
 const stuck = il.trains.filter(t => t.state === 'halt').length;
+for (const m of il.messages.filter(m=>m.text.includes("falsch"))) console.log(m.text);
 console.log('Punkte', JSON.stringify(bt.score), 'Züge im Bild', il.trains.length, 'wartend', stuck);
 if (bt.score.ok < 15) { console.error('FEHLER: zu wenige Zugfahrten'); process.exit(1); }
 if (bt.score.wrong > 0) { console.error('FEHLER: Fehlleitungen durch Bot'); process.exit(1); }
