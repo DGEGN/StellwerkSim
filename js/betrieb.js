@@ -1,29 +1,6 @@
 // Fahrplanbetrieb: erzeugt Ein- und Ausfahrten mit Zugnummern und bewertet die Abwicklung.
-const WEST_ENTRIES = [
-  { edge: 'e_a0', sig: 's_D', from: 'Lauterecken-Grumbach', dir: 'E' },
-  { edge: 'e_b0', sig: 's_CC', from: 'Homburg (Saar)', dir: 'E' },
-  { edge: 'e_c0', sig: 's_C', from: 'Homburg (Saar)', dir: 'E' },
-  { edge: 'e_d0', sig: 's_A', from: 'Pirmasens', dir: 'E' },
-];
-const EAST_ENTRIES = [
-  { edge: 'e_h', sig: 's_H', from: 'Ludwigshafen', dir: 'W' },
-  { edge: 'e_i', sig: 's_I', from: 'Ludwigshafen', dir: 'W' },
-  { edge: 'e_g_enk', sig: 's_G', from: 'Enkenbach', dir: 'W' },
-];
-const LINE_EDGE = { t_laut: 'e_a0', t_hb: 'e_b0', t_hc: 'e_c0', t_pir: 'e_d0', t_lu3: 'e_h', t_lu4: 'e_i', t_enk: 'e_g_enk' };
-const WEST_TERMS = ['t_laut', 't_hb', 't_hc', 't_pir'];
-const EAST_TERMS = ['t_lu3', 't_lu4', 't_enk'];
-// Bahnsteiggleise: p = westliches Ausfahrsignal, east = Gleisende/Ostsignal, edge = Aufstellort in Richtung West
-export const PLATFORMS = {
-  g39: { p: 's_P39', east: 't_39', edge: 'e_39b' },
-  g40: { p: 's_P40', east: null, edge: 'e_p40' },
-  g41: { p: 's_P41', east: 's_R41', edge: 'e_41', eastDep: true },
-  g42: { p: 's_P42', east: 's_R42', edge: 'e_42', eastDep: true },
-  g3: { p: 's_P43', east: 's_N103', edge: 'e_b7' },
-  g4: { p: 's_P104', east: 's_N104', edge: 'e_c8', eastDep: true },
-  g45: { p: 's_P45', east: 't_45', edge: 'e_d7' },
-  g105: { p: 's_P105', east: 's_N105', edge: 'e_105', eastDep: true },
-};
+import { WEST_ENTRIES, EAST_ENTRIES, LINE_EDGE, WEST_TERMS, EAST_TERMS, PLATFORMS } from './config.js';
+export { PLATFORMS };
 const P_EAST_ARR = Object.values(PLATFORMS).filter(x => x.eastDep).map(x => x.p);
 const FINAL = new Set([...Object.values(PLATFORMS).flatMap(x => [x.p, x.east]).filter(Boolean), ...WEST_TERMS, ...EAST_TERMS]);
 export const LEVELS = [
@@ -119,10 +96,11 @@ export class Betrieb {
       const at = this._node(t);
       const atFinal = at && FINAL.has(at) && (t.state === 'done' || t.state === 'halt');
       if (!atFinal) continue;
+      if (t.kind === 'ein' && t.dwell === undefined && at !== t.dest && il.nodes[at].t === 'sig' && nextHop(il, at, t.dest)) continue;   // Zwischenhalt vor Folgesignal
       if (t.kind === 'ein') {
         if (t.dwell === undefined) {
           const good = at === t.dest;
-          this.score[good ? 'ok' : 'wrong']++;
+          if(!good&&typeof process!=='undefined'&&process.env.DBG)console.log('WRONG ein',t.no,t.dest,at);this.score[good ? 'ok' : 'wrong']++;
           il.msg(good ? `Zug ${t.no} in ${il.nodes[t.dest].name} angekommen` : `Zug ${t.no} falsch geleitet nach ${il.nodes[at].name} (Ziel war ${il.nodes[t.dest].name})`, good ? 'info' : 'err');
           t.dwell = 35 + Math.random() * 40;
         }
@@ -145,7 +123,7 @@ export class Betrieb {
         if (t.state !== 'done') continue;
         if (t.dwell === undefined) {
           const good = at === t.dest;
-          this.score[good ? 'ok' : 'wrong']++;
+          if(!good&&typeof process!=='undefined'&&process.env.DBG)console.log('WRONG aus',t.no,t.dest,at,t.from);this.score[good ? 'ok' : 'wrong']++;
           il.msg(good ? `Zug ${t.no} ausgefahren nach ${il.nodes[at].name}` : `Zug ${t.no} falsch geleitet nach ${il.nodes[at].name}`, good ? 'info' : 'err');
           t.dwell = 3;
         }

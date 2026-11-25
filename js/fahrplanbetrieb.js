@@ -4,32 +4,8 @@
 import FAHRPLAN from './fahrplan.js';
 import { nextHop } from './betrieb.js';
 
-// Fahrplangleis → Gleisbild. w = Signal am Westende (Ausfahrt nach Westen / Ziel von Osten),
-// e = Signal bzw. Prellbock am Ostende (Ausfahrt nach Osten / Ziel von Westen).
-export const FP_GLEISE = {
-  '1': { name: '1 (Gl. 101)', w: 's_S101', e: 's_N101' },
-  '2': { name: '2 (Gl. 102)', w: 's_S102', e: 's_N102' },
-  '3': { name: '3', w: 's_P43', e: 's_N103' },
-  '4': { name: '4', w: 's_P104', e: 's_N104' },
-  '5': { name: '5 (Gl. 105)', w: 's_P105', e: 's_N105' },
-  '8': { name: '8 (Gl. 108)', w: 's_P108', e: 's_N106' },
-  '10': { name: '10 (Gl. 110)', w: 's_P110', e: 's_N110' },
-  '39': { name: '39', w: 's_P39', e: 't_39' },
-  '40': { name: '40', w: 's_P40', e: 't_40' },
-  '41': { name: '41', w: 's_P41', e: 's_R41' },
-  '42': { name: '42', w: 's_P42', e: 's_R42' },
-  '45': { name: '45', w: 's_P45', e: 't_45' },
-  '120': { name: '120', w: 't_g120', e: 's_N120' },
-};
-// Richtungsgruppen: Einfahrt-/Ausfahrtpunkte
-const GRP = {
-  pir: { side: 'W', name: 'Pirmasens', entries: [{ edge: 'e_d0', sig: 's_A' }], terms: ['t_pir'] },
-  laut: { side: 'W', name: 'Lauterecken', entries: [{ edge: 'e_a0', sig: 's_D' }], terms: ['t_laut'] },
-  hb: { side: 'W', name: 'Homburg / Landstuhl', entries: [{ edge: 'e_b0', sig: 's_CC' }, { edge: 'e_c0', sig: 's_C' }], terms: ['t_hb', 't_hc'] },
-  lu: { side: 'E', name: 'Hochspeyer / Neustadt', entries: [{ edge: 'e_h', sig: 's_H' }, { edge: 'e_i', sig: 's_I' }], terms: ['t_lu3', 't_lu4'] },
-  enk: { side: 'E', name: 'Enkenbach / Bad Münster', entries: [{ edge: 'e_g_enk', sig: 's_G' }], terms: ['t_enk'] },
-};
-const LINE_EDGE = { t_laut: 'e_a0', t_hb: 'e_b0', t_hc: 'e_c0', t_pir: 'e_d0', t_lu3: 'e_h', t_lu4: 'e_i', t_enk: 'e_g_enk' };
+import { FP_GLEISE, GRP, LINE_EDGE } from './config.js';
+export { FP_GLEISE };
 export const DAYS = { mf: 'Mo–Fr (Mi 25.11.)', sa: 'Samstag (28.11.)', so: 'Sonntag (29.11.)' };
 const fmt = s => { s = Math.floor(s); return `${String(Math.floor(s / 3600) % 24).padStart(2, '0')}:${String(Math.floor(s / 60) % 60).padStart(2, '0')}`; };
 export const fmtClock = s => { s = Math.floor(s); return `${fmt(s)}:${String(s % 60).padStart(2, '0')}`; };

@@ -1,195 +1,276 @@
-// Kaiserslautern Hbf – Westkopf (Version 1)
-// Koordinaten = Pixel des Plans "SKL_APN-Skizze" (Seite auf 2000 px Breite skaliert).
-// Gelesen vom Plan, NICHT amtlich geprüft. Abweichungen bitte melden/korrigieren.
-//
-// Knoten:  sw  = Weiche (Ports: stem=Spitze, str=gerade, br=abzweigend)
-//          sig = Hauptsignal (Ports: w/e, dir = Richtung, in die es zeigt)
-//          term= Gleisende / Zielpunkt (Port: p)
-// Kanten:  [id, 'knoten.port', 'knoten.port', [Zwischenpunkte]]
-const N = (t, x, y, o = {}) => ({ t, x, y, ...o });
+// Kaiserslautern Hbf (SKL) – Gleisbild nach dem Stelltischbild (Version 6)
+// Alle Koordinaten sind Pixel des Vorlagebildes (Raster 6 px). Das Gleisbild ist als Graph beschrieben:
+//   Knoten  sw  = Weiche, sig = Hauptsignal (dir = Richtung der Lampen), term = Gleisende/Ziel
+//   Kanten  entstehen aus chain(...): Knoten-IDs und Zwischenpunkte [x,y] in Fahrtreihenfolge.
+// Die Ports (Spitze/gerade/abzweigend bzw. w/e) werden aus der Zeichnung berechnet (finalize).
+// NICHT amtlich geprüft – nur nach dem Bild nachgebaut.
 
-const west = {
-  name: 'Kaiserslautern Hbf – Westkopf',
-  nodes: {
-    // Weichen
-    w003: N('sw', 256, 710, { no: '003' }), w004: N('sw', 288, 746, { no: '004' }),
-    w005: N('sw', 314, 746, { no: '005' }), w006: N('sw', 339, 782, { no: '006' }),
-    w007: N('sw', 361, 782, { no: '007' }), w008: N('sw', 378, 799, { no: '008' }),
-    w017: N('sw', 450, 799, { no: '017' }), w018: N('sw', 489, 799, { no: '018' }),
-    w022: N('sw', 467, 782, { no: '022' }), w023: N('sw', 506, 782, { no: '023' }),
-    w028: N('sw', 489, 710, { no: '028' }), w029: N('sw', 517, 746, { no: '029' }),
-    w036: N('sw', 647, 746, { no: '036' }), w037: N('sw', 681, 782, { no: '037' }),
-    w038: N('sw', 773, 746, { no: '038' }), w039: N('sw', 802, 717, { no: '039' }),
-    w042: N('sw', 781, 782, { no: '042' }), w043: N('sw', 795, 799, { no: '043' }),
-    w044: N('sw', 864, 799, { no: '044' }), w047: N('sw', 889, 835, { no: '047' }), w048: N('sw', 876, 818, { no: '048' }),
-    w057: N('sw', 560, 710, { no: '057' }), w058: N('sw', 596, 746, { no: '058' }),
-    w054: N('sw', 759, 710, { no: '054' }), w056: N('sw', 838, 602, { no: '056' }),
-    // Hauptsignale (Einfahrt aus Westen: Richtung Ost; Ausfahrt nach Westen: Richtung West)
-    s_D:  N('sig', 222, 710, { dir: 'E', name: 'D' }),
-    s_CC: N('sig', 204, 746, { dir: 'E', name: 'CC' }),
-    s_C:  N('sig', 204, 782, { dir: 'E', name: 'C' }),
-    s_A:  N('sig', 180, 817, { dir: 'E', name: 'A' }),
-    s_P39: N('sig', 880, 602, { dir: 'W', name: 'P39' }),
-    s_P40: N('sig', 880, 639, { dir: 'W', name: 'P40' }),
-    s_P41: N('sig', 860, 674, { dir: 'W', name: 'P41' }),
-    s_P42: N('sig', 840, 718, { dir: 'W', name: 'P42' }),
-    s_P43: N('sig', 840, 746, { dir: 'W', name: 'P43' }),
-    s_P104: N('sig', 840, 782, { dir: 'W', name: 'P104' }),
-    s_P45: N('sig', 905, 799, { dir: 'W', name: 'P45' }),
-    s_P105: N('sig', 930, 835, { dir: 'W', name: 'P105' }),
-    // Zielpunkte
-    t_laut: N('term', 125, 655, { name: 'Lauterecken', label: 'Str. 3302 → Lauterecken-Grumbach', side: 'W' }),
-    t_hb:   N('term', 60, 746, { name: 'Homburg Gl. CC', label: 'Str. 3280 → Homburg (Gl. CC)', side: 'W' }),
-    t_hc:   N('term', 60, 782, { name: 'Homburg Gl. C', label: 'Str. 3280 → Homburg (Gl. C)', side: 'W' }),
-    t_pir:  N('term', 120, 872, { name: 'Pirmasens', label: 'Str. 3300 → Pirmasens', side: 'W' }),
-    t_37:  N('term', 1000, 584, { name: 'Gl. 37', label: 'Gl. 37', side: 'E' }),
-    t_39:  N('term', 1000, 602, { name: 'Gl. 39', label: 'Gl. 39', side: 'E' }),
-    t_40:  N('term', 1000, 639, { name: 'Gl. 40', label: 'Gl. 40', side: 'E' }),
-    t_41:  N('term', 1000, 674, { name: 'Gl. 41', label: 'Gl. 41', side: 'E' }),
-    t_42:  N('term', 1000, 718, { name: 'Gl. 42', label: 'Gl. 42', side: 'E' }),
-    t_3:   N('term', 1000, 746, { name: 'Gl. 3', label: 'Gl. 3', side: 'E' }),
-    t_4:   N('term', 1000, 782, { name: 'Gl. 4', label: 'Gl. 4', side: 'E' }),
-    t_45:  N('term', 1000, 799, { name: 'Gl. 45', label: 'Gl. 45', side: 'E' }),
-    t_105: N('term', 1000, 835, { name: 'Gl. 105', label: 'Gl. 105', side: 'E' }),
-    t_108: N('term', 1000, 870, { name: 'Gl. 108', label: 'Gl. 108', side: 'E' }),
-  },
-  edges: [
-    // Reihe a (Str. 3302 / Gl. 40)
-    ['e_a0', 't_laut.p', 's_D.w', [[181, 710]]],
-    ['e_a1', 's_D.e', 'w003.stem'],
-    ['e_a2', 'w003.str', 'w028.stem'],
-    ['e_a3', 'w028.str', 'w057.str'],
-    ['e_a3b', 'w057.stem', 'w054.stem'],
-    ['e_a3c', 'w057.br', 'w058.br'],
-    ['e_a4', 'w054.str', 's_P40.w', [[780, 710], [850, 639]]],
-    ['e_p40', 's_P40.e', 't_40.p'],
-    ['e_054_056', 'w054.br', 'w056.stem'],
-    ['e_37', 'w056.str', 't_37.p', [[852, 584]]],
-    ['e_39a', 'w056.br', 's_P39.w', [[852, 602]]],
-    ['e_39b', 's_P39.e', 't_39.p'],
-    // Reihe b (Str. 3280 Gl. CC / Gl. 3)
-    ['e_b0', 't_hb.p', 's_CC.w'],
-    ['e_b1', 's_CC.e', 'w004.str'],
-    ['e_b2', 'w004.stem', 'w005.stem'],
-    ['e_b3', 'w005.str', 'w029.str'],
-    ['e_b4', 'w029.stem', 'w058.stem'],
-    ['e_b4b', 'w058.str', 'w036.stem'],
-    ['e_b5', 'w036.str', 'w038.stem'],
-    ['e_b6', 'w038.str', 's_P43.w'],
-    ['e_b7', 's_P43.e', 't_3.p'],
-    ['e_038_039', 'w038.br', 'w039.stem'],
-    ['e_039_41', 'w039.str', 's_P41.w', [[842, 674]]],
-    ['e_41', 's_P41.e', 't_41.p'],
-    ['e_039_42', 'w039.br', 's_P42.w'],
-    ['e_42', 's_P42.e', 't_42.p'],
-    // Reihe c (Str. 3280 Gl. C / Gl. 4)
-    ['e_c0', 't_hc.p', 's_C.w'],
-    ['e_c1', 's_C.e', 'w006.str'],
-    ['e_c2', 'w006.stem', 'w007.stem'],
-    ['e_c3', 'w007.str', 'w022.str'],
-    ['e_c4', 'w022.stem', 'w023.str'],
-    ['e_c5', 'w023.stem', 'w037.str'],
-    ['e_c6', 'w037.stem', 'w042.stem'],
-    ['e_c7', 'w042.str', 's_P104.w'],
-    ['e_c8', 's_P104.e', 't_4.p'],
-    // Reihe d (Str. 3300 / Gl. 45)
-    ['e_d0', 't_pir.p', 's_A.w'],
-    ['e_d1', 's_A.e', 'w008.str', [[200, 799]]],
-    ['e_d2', 'w008.stem', 'w017.stem'],
-    ['e_d3', 'w017.str', 'w018.stem'],
-    ['e_d4', 'w018.str', 'w043.str'],
-    ['e_d5', 'w043.stem', 'w044.stem'],
-    ['e_d6', 'w044.str', 's_P45.w'],
-    ['e_d7', 's_P45.e', 't_45.p'],
-    ['e_044_048', 'w044.br', 'w048.stem'],
-    ['e_048_047', 'w048.str', 'w047.stem'],
-    ['e_047_105', 'w047.br', 's_P105.w'],
-    ['e_105', 's_P105.e', 't_105.p'],
-    ['e_047_108', 'w047.str', 't_108.p', [[905, 853]]],
-    // Verbindungen zwischen den Reihen
-    ['e_003_004', 'w003.br', 'w004.br'],
-    ['e_005_006', 'w005.br', 'w006.br'],
-    ['e_007_008', 'w007.br', 'w008.br'],
-    ['e_017_022', 'w017.br', 'w022.br'],
-    ['e_018_023', 'w018.br', 'w023.br'],
-    ['e_028_029', 'w028.br', 'w029.br'],
-    ['e_036_037', 'w036.br', 'w037.br'],
-    ['e_042_043', 'w042.br', 'w043.br'],
-  ],
+const nodes = {};
+const links = [];
+const decor = { blocks: [], labels: [], markers: [], leds: [], glyphs: [], tracks: [], bars: [] };
+
+const SW = (no, x, y, lab = 't') => { nodes['w' + no] = { t: 'sw', x, y, no: String(no), lab }; };
+// dir: Richtung, in die die Lampen zeigen (E = nach rechts). lab: Nummernschild links ('l') oder rechts ('r')
+const SG = (no, x, y, dir, o = {}) => { nodes['s' + no] = { t: 'sig', x, y, dir, name: String(no), zt: true, lab: dir === 'E' ? 'r' : 'l', ...o }; };
+const TM = (id, x, y, name, o = {}) => { nodes[id] = { t: 'term', x, y, name, label: name, ...o }; };
+const chain = (...items) => {
+  let prev = null, via = [];
+  for (const it of items) {
+    if (Array.isArray(it)) { via.push(it); continue; }
+    if (prev !== null) links.push([prev, it, via]);
+    prev = it; via = [];
+  }
 };
 
-// ---------------- Ostkopf (Version 4) ----------------
-// Aus dem Plan abgelesen (Zoom 330 dpi), vereinfacht: ohne Gleise 109/119/180-182, Werk und Gleisanschlüsse.
-const E = (t, x, y, o = {}) => ({ t, x, y, ...o });
-const sigE = (id, x, y, name, extra = {}) => { west.nodes[id] = E('sig', x, y, { dir: 'E', name, zt: true, ...extra }); };
-const sigW = (id, x, y, name, extra = {}) => { west.nodes[id] = E('sig', x, y, { dir: 'W', name, zt: true, ...extra }); };
-const sw = (id, no, x, y) => { west.nodes[id] = E('sw', x, y, { no }); };
-const term = (id, x, y, name, label, side = 'E') => { west.nodes[id] = E('term', x, y, { name, label: label || name, side }); };
-const edge = (id, a, b, via) => west.edges.push(via ? [id, a, b, via] : [id, a, b]);
-const del = (...ids) => { for (const i of ids) delete west.nodes[i]; };
-del('t_41', 't_3', 't_4', 't_105', 't_108');
-west.edges = west.edges.filter(e => !['e_p40', 'e_41', 'e_42', 'e_b7', 'e_c8', 'e_105', 'e_047_108'].includes(e[0]));
-// Stumpfgleise am Bahnsteigende (Zieltasten)
-Object.assign(west.nodes, {
-  t_37: E('term', 1101, 584, { name: 'Gl. 37', label: 'Gl. 37', side: 'E' }),
-  t_39: E('term', 1099, 602, { name: 'Gl. 39', label: 'Gl. 39', side: 'E' }),
-  t_40: E('term', 1099, 638, { name: 'Gl. 40', label: 'Gl. 40', side: 'E' }),
-  t_42: E('term', 1075, 716, { name: 'Gl. 42', label: 'Gl. 42', side: 'E' }),
-  t_45: E('term', 1083, 799, { name: 'Gl. 45', label: 'Gl. 45', side: 'E' }),
-});
-// Weichen
-sw('w096', '096', 1083, 638); sw('w095', '095', 1108, 676); sw('w094', '094', 1075, 673);
-sw('w092', '092', 1057, 716); sw('w093', '093', 1080, 745);
-sw('w129', '129', 1487, 671); sw('w130', '130', 1518, 709);
-sw('w127', '127', 1427, 619); sw('w128', '128', 1445, 637);
-sw('w121', '121', 1479, 781); sw('w122', '122', 1505, 745); sw('w118', '118', 1609, 781);
-sw('w123', '123', 1549, 745); sw('w133', '133', 1580, 709); sw('w134', '134', 1611, 709);
-sw('w135', '135', 1642, 745); sw('w136', '136', 1650, 781); sw('w137', '137', 1681, 745);
-sw('w138', '138', 1702, 745); sw('w139', '139', 1735, 709); sw('w140', '140', 1730, 745); sw('w141', '141', 1761, 781);
-sw('w112', '112', 1554, 837); sw('w110s', '110', 1518, 872);
-// Signale (E = Richtung Ost, W = Richtung West); zt = Zugstraßentaste dient als Zieltaste
-sigE('s_R41', 1050, 673, 'R41'); sigE('s_R42', 1050, 716, 'R42');
-sigW('s_S101', 1135, 676, 'S101'); sigW('s_S102', 1140, 709, 'S102'); sigW('s_S103', 1130, 745, 'S103');
-sigE('s_N101', 1440, 676, 'N101'); sigE('s_N102', 1440, 709, 'N102'); sigE('s_N103', 1440, 745, 'N103');
-sigE('s_N104', 1432, 781, 'N104'); sigE('s_N105', 1414, 835, 'N105'); sigE('s_N106', 1425, 872, 'N106'); sigE('s_N110', 1389, 907, 'N110');
-sigW('s_P108', 960, 853, 'P108'); sigW('s_P110', 1000, 907, 'P110'); sigE('s_N120', 1305, 638, 'N120');
-sigW('s_H', 1880, 745, 'H'); sigW('s_I', 1880, 781, 'I'); sigW('s_G', 1798, 693, 'G');
-// Zielpunkte
-term('t_g120', 1264, 638, 'Gl. 120', 'Gl. 120', 'W'); term('t_g121', 1295, 620, 'Gl. 121', 'Gl. 121', 'W'); term('t_g122', 1290, 602, 'Gl. 122', 'Gl. 122', 'W');
-term('t_lu3', 1950, 745, 'Ludwigshafen Gl. 3', 'Str. 3280 → Ludwigshafen (Gl. 3)'); term('t_lu4', 1950, 781, 'Ludwigshafen Gl. 4', 'Str. 3280 → Ludwigshafen (Gl. 4)');
-term('t_enk', 1900, 596, 'Enkenbach', 'Str. 3303 → Enkenbach'); 
-// Bahnsteiggleise → Ostkopf
-edge('e_p40', 's_P40.e', 'w096.stem');
-edge('e_096_40', 'w096.str', 't_40.p'); edge('e_096_095', 'w096.br', 'w095.br');
-edge('e_41', 's_P41.e', 's_R41.w'); edge('e_r41', 's_R41.e', 'w094.stem');
-edge('e_094_095', 'w094.str', 'w095.str');
-edge('e_094_102', 'w094.br', 's_S102.w', [[1108, 709]]);
-edge('e_42', 's_P42.e', 's_R42.w'); edge('e_r42', 's_R42.e', 'w092.stem');
-edge('e_092_42', 'w092.str', 't_42.p'); edge('e_092_093', 'w092.br', 'w093.br');
-edge('e_b7', 's_P43.e', 'w093.str'); edge('e_093_s', 'w093.stem', 's_S103.w');
-edge('e_c8', 's_P104.e', 's_N104.w'); edge('e_n104', 's_N104.e', 'w121.stem');
-edge('e_105', 's_P105.e', 's_N105.w'); edge('e_n105', 's_N105.e', 'w112.br');
-edge('e_047_108', 'w047.str', 's_P108.w', [[905, 853]]); edge('e_p108', 's_P108.e', 's_N106.w'); edge('e_n106', 's_N106.e', 'w110s.br');
-// Gleise 101 / 102 / 3 nach Osten
-edge('e_095_s101', 'w095.stem', 's_S101.w'); edge('e_s101_n101', 's_S101.e', 's_N101.w'); edge('e_n101', 's_N101.e', 'w129.br');
-edge('e_s102_n102', 's_S102.e', 's_N102.w'); edge('e_n102', 's_N102.e', 'w130.str');
-edge('e_s103_n103', 's_S103.e', 's_N103.w'); edge('e_n103', 's_N103.e', 'w122.str');
-// Gleise 120-122 und Diagonale 125-130
-edge('e_g122', 't_g122.p', 'w127.str', [[1415, 602]]); edge('e_g121', 't_g121.p', 'w127.br'); edge('e_g120', 't_g120.p', 's_N120.w'); edge('e_n120', 's_N120.e', 'w128.br');
-edge('e_127_128', 'w127.stem', 'w128.str'); edge('e_128_129', 'w128.stem', 'w129.str'); edge('e_129_130', 'w129.stem', 'w130.br');
-// Zugbildungsgleis-Zufahrten Zeilen 3/4/102
-edge('e_130_133', 'w130.stem', 'w133.str'); edge('e_133_134', 'w133.stem', 'w134.stem'); edge('e_134_139', 'w134.str', 'w139.str');
-edge('e_139_g', 'w139.stem', 's_G.w', [[1770, 709]]); edge('e_g_enk', 's_G.e', 't_enk.p', [[1880, 614]]);
-edge('e_122_123', 'w122.stem', 'w123.stem'); edge('e_123_135', 'w123.str', 'w135.str'); edge('e_135_137', 'w135.stem', 'w137.str');
-edge('e_137_138', 'w137.stem', 'w138.stem'); edge('e_138_140', 'w138.str', 'w140.stem');
-edge('e_140_h', 'w140.str', 's_H.w'); edge('e_h', 's_H.e', 't_lu3.p');
-edge('e_121_118', 'w121.str', 'w118.str'); edge('e_118_136', 'w118.stem', 'w136.stem'); edge('e_136_141', 'w136.str', 'w141.str');
-edge('e_141_i', 'w141.stem', 's_I.w'); edge('e_i', 's_I.e', 't_lu4.p');
-// Überleitverbindungen
-edge('e_122_121', 'w122.br', 'w121.br'); edge('e_123_133', 'w123.br', 'w133.br'); edge('e_134_135', 'w134.br', 'w135.br');
-edge('e_137_136', 'w137.br', 'w136.br'); edge('e_138_139', 'w138.br', 'w139.br'); edge('e_140_141', 'w140.br', 'w141.br');
-// Gleise 105 / 108 / 110 nach Osten
-edge('e_112_118', 'w112.stem', 'w118.br', [[1580, 811]]); edge('e_112_110', 'w112.str', 'w110s.stem');
-edge('e_110s', 'w110s.str', 's_N110.e', [[1500, 890]]); edge('e_n110', 's_N110.w', 's_P110.e'); edge('e_048_110', 'w048.br', 's_P110.w', [[890, 907]]);
-for (const n of Object.values(west.nodes)) if (n.t === 'sig' && /^s_P/.test(Object.keys(west.nodes).find(k => west.nodes[k] === n))) n.zt = true;
-export default west;
+// ---------------------------------------------------------------- Weichen
+// Zeile 282/306 (West)
+SW(212, 186, 306); SW(216, 354, 306); SW(215, 366, 306, 'b'); SW(217, 462, 306); SW(218, 498, 306, 'b'); SW(220, 534, 306, 'b');
+SW(223, 774, 306);
+SW(198, 330, 282);
+// Zeile 330
+SW(237, 210, 330); SW(236, 222, 330, 'b'); SW(239, 390, 330, 'b'); SW(240, 414, 330); SW(241, 438, 330, 'b'); SW(243, 486, 330);
+SW(246, 798, 330, 'b');
+// Zeile 354
+SW(260, 258, 354); SW(259, 246, 354, 'b'); SW(262, 366, 354); SW(263, 390, 354, 'b'); SW(266, 510, 354, 'b'); SW(267, 534, 354);
+// Zeile 378
+SW(282, 282, 378, 'b'); SW(283, 306, 378); SW(284, 342, 378, 'b'); SW(285, 402, 378); SW(286, 438, 378); SW(289, 558, 378, 'b'); SW(290, 582, 378);
+// Zeile 414 / 402 / 426
+SW(311, 270, 414, 'b'); SW(300, 606, 402); SW(315, 486, 426); SW(318, 630, 426, 'b');
+// Leiter nach Gl. 39/40/41 (Gleisharfe)
+SW(171, 558, 282, ''); SW(172, 582, 258, '');
+// Ostende der Gleise 39–42
+SW(189, 834, 258); SW(202, 834, 282); SW(203, 858, 282, 'b');
+// Diagonale 120/121/122 nach Osten
+SW(175, 1050, 234); SW(176, 1074, 258); SW(177, 1098, 282); SW(226, 1122, 306, 'b');
+// Zeile 306 Ost / 330 Ost
+SW(227, 1146, 306); SW(229, 1170, 306); SW(232, 1254, 306);
+SW(249, 1110, 330); SW(250, 1122, 330, 'b'); SW(253, 1194, 330, 'b'); SW(254, 1218, 330); SW(255, 1230, 330, 'b'); SW(256, 1254, 330);
+// Zeile 354 Ost
+SW(270, 1086, 354, 'b'); SW(273, 1170, 354); SW(274, 1194, 354, 'b'); SW(277, 1278, 354, 'b');
+// Zeile 402 / 426 / 450 Ost
+SW(303, 1110, 402); SW(304, 1122, 402, 'b'); SW(305, 1146, 402, 'b'); SW(306, 1170, 402);
+SW(321, 1050, 426); SW(322, 1086, 426, 'b'); 
+SW(295, 1338, 378); SW(325, 1386, 426, 'b');
+
+// ---------------------------------------------------------------- Signale (Lampen zeigen in dir)
+// Einfahrt von Westen
+SG(211, 162, 306, 'E'); SG(235, 162, 330, 'E'); SG(258, 162, 354, 'E'); SG(281, 174, 378, 'E');
+// Ausfahrt nach Westen (Westende der Bahnsteiggleise)
+for (const [no, y] of [[176, 210], [181, 234], [187, 258], [200, 282], [221, 306], [244, 330], [268, 354], [291, 378], [301, 402]]) SG(no, 642, y, 'W');
+SG(316, 510, 426, 'W'); SG(319, 654, 426, 'W'); SG(335, 534, 474, 'W');
+// Ausfahrt nach Osten (Ostende der westlichen Gleishälften)
+SG(188, 810, 258, 'E'); SG(201, 810, 282, 'E'); SG(222, 750, 306, 'E');
+// Westende der östlichen Gleise
+SG(204, 882, 282, 'W'); SG(224, 882, 306, 'W'); SG(247, 822, 330, 'W');
+// Ostende (Ausfahrt nach Osten)
+SG(191, 1038, 258, 'E'); SG(205, 1062, 282, 'E'); SG(225, 1062, 306, 'E'); SG(248, 1062, 330, 'E'); SG(269, 1062, 354, 'E');
+SG(302, 1062, 402, 'E'); SG(320, 1014, 426, 'E'); SG(336, 1014, 474, 'E');
+// Einfahrt von Osten
+SG(234, 1410, 306, 'W'); SG(257, 1422, 330, 'W'); SG(280, 1422, 354, 'W'); SG(326, 1410, 426, 'W');
+SG(333, 1338, 462, 'W', { vertical: true, lab: 'l' }); SG(334, 1374, 462, 'W', { vertical: true, lab: 'l' });
+// reine Zugstraßentasten ohne Lampenbild
+SG(193, 366, 270, 'W', { nolamp: true }); SG(312, 318, 414, 'W', { nolamp: true });
+
+// ---------------------------------------------------------------- Gleisenden / Ziele
+// ziel: Form des Zielsymbols ('R' Gleis läuft nach links, 'L' nach rechts); plain = graue Markierung im Gleis
+TM('t_lamp', 18, 294, 'Lampertsmühle', { border: 'u', side: 'W' });
+TM('t_pir', 18, 402, 'Pirmasens Nord', { border: 'd', side: 'W' });
+TM('t_hb1', 20, 330, 'Homburg (Gl. 1)', { hidden: true, side: 'W', area: [0, 326, 24, 17] });
+TM('t_hb2', 20, 354, 'Homburg (Gl. 2)', { hidden: true, side: 'W', area: [0, 343, 24, 17] });
+TM('t_lu1', 1580, 330, 'Neustadt (Gl. 1)', { hidden: true, side: 'E', area: [1572, 326, 24, 17] });
+TM('t_lu2', 1580, 354, 'Neustadt (Gl. 2)', { hidden: true, side: 'E', area: [1572, 343, 24, 17] });
+TM('t_esel', 1578, 294, 'Eselsfürth', { border: 'u', side: 'E' });
+TM('t_enk', 1566, 426, 'Enkenbach', { border: 'u', side: 'E' });
+TM('t_tank', 438, 270, 'Tankstelle', { border: 'u', side: 'E' });
+TM('t_bw', 738, 210, 'BW', { bw: true, side: 'E' });
+TM('t_196', 222, 282, '196', { ziel: 'L', plain: true, side: 'W' });
+TM('t_309', 174, 414, '309', { ziel: 'L', plain: true, side: 'W' });
+TM('t_179', 930, 210, '179', { ziel: 'L', side: 'W' });
+TM('t_183', 930, 234, '183', { ziel: 'L', side: 'W' });
+TM('t_190', 930, 258, '190', { ziel: 'L', side: 'W' });
+TM('t_182', 846, 234, '182', { ziel: 'R', side: 'E' });
+TM('t_292', 810, 378, '292', { ziel: 'R', side: 'E' });
+TM('t_330', 762, 450, '330', { ziel: 'R', side: 'E' });
+TM('t_331', 954, 450, '331', { ziel: 'L', side: 'W' });
+TM('t_297', 1422, 378, '297', { ziel: 'R', side: 'E' });
+TM('t_324', 1302, 426, '324', { ziel: 'R', side: 'E' });
+TM('t_abst', 366, 414, 'Abstellung', { border: 'd', side: 'E' });
+// Gleisenden ohne eigenes Symbol (Prellböcke)
+TM('t_e40', 872, 258, 'Gl. 40 Ende', { hidden: true, side: 'E' });
+TM('t_e42', 814, 306, 'Gl. 42 Ende', { hidden: true, side: 'E' });
+TM('t_h333', 1338, 498, 'Hochspeyer (333)', { hidden: true, side: 'S' });
+TM('t_h334', 1374, 498, 'Hochspeyer (334)', { hidden: true, side: 'S' });
+
+// ---------------------------------------------------------------- Gleise (Fahrtreihenfolge von West nach Ost)
+// Lampertsmühle – Gl. 60
+chain('t_lamp', [126, 294], [138, 306], 's211', 'w212', 'w216', 'w215', 'w217', 'w218', 'w220', 's221', 's222', 'w223', 't_e42');
+// Hauptgleise Homburg
+chain('t_hb1', 's235', 'w237', 'w236', 'w239', 'w240', 'w241', 'w243', 's244', 'w246', 's247', 's248', 'w249', 'w250', 'w253', 'w254', 'w255', 'w256', 's257', 't_lu1');
+chain('t_hb2', 's258', 'w259', 'w260', 'w262', 'w263', 'w266', 'w267', 's268', 's269', 'w270', 'w273', 'w274', 'w277', 's280', 't_lu2');
+// Pirmasens Nord – Zeile 378 – Gl. 45
+chain('t_pir', [42, 402], [54, 390], [138, 390], [150, 378], 's281', 'w282', 'w283', 'w284', 'w285', 'w286', 'w289', 'w290', 's291', 't_292');
+// Verbindungen zwischen den Zeilen (westlicher Kopf)
+chain('w212', 'w237');                         // Diagonale A
+chain('w236', 'w259');                         // B
+chain('w260', 'w282');                         // C
+chain('w283', 'w311');                         // D
+chain('w284', 'w262');                         // E
+chain('w216', 'w198');                         // G
+chain('w215', 'w239');                         // F
+chain('w240', 'w263');                         // H
+chain('w241', 'w217');                         // I
+chain('w243', 'w266');                         // J
+chain('w267', 'w289');                         // M
+chain('w223', 'w246');                         // P (Gl. 42 – Gl. 13)
+// -220- und Tankstelle
+chain('t_196', 'w198', [342, 282], [354, 270], 's193', 't_tank');
+// -68- Abstellung
+chain('t_309', 'w311', 's312', 't_abst');
+// BW
+chain('w218', [594, 210], 's176', 't_bw');
+// Gleisharfe nach Gl. 39/40/41
+chain('w220', 'w171', 'w172', [606, 234], 's181', 't_182');
+chain('w171', 's200', 's201', 'w202', 'w203', 's204', 's205', 'w177');
+chain('w172', 's187', 's188', 'w189', 't_e40');
+chain('w189', 'w203');
+chain('w202', [858, 306], 's224', 's225', 'w226');
+// Abstellanlage / lange Diagonalen im Südwesten
+chain('w285', [498, 474], 's335', 's336', [1038, 474], 'w322', 'w303');
+chain('w286', 'w315', [510, 450], 't_330');
+chain('w290', 'w300', 'w318');
+chain('w315', 's316', 'w318', 's319', 's320', 'w321', 'w322');
+chain('w300', 's301', 's302', 'w303', 'w304', 'w305', 'w306', [1314, 402], 'w295');
+// Gl. 119 / 120–122
+chain('t_331', [1026, 450], 'w321');
+chain('t_179', [1020, 210], 'w175', 'w176', 'w177', 'w226');
+chain('t_183', 'w175');
+chain('t_190', 's191', 'w176');
+// Zeile 306 Ost
+chain('w226', 'w227', 'w229', 'w232', 's234', [1446, 306], [1458, 294], 't_esel');
+// Verbindungen im östlichen Kopf
+chain('w227', 'w250');                         // R
+chain('w229', 'w253');                         // Q
+chain('w232', 'w255');                         // c=1560
+chain('w254', 'w274');                         // c=1548
+chain('w256', 'w277');                         // c=924
+chain('w249', 'w270');                         // c=1440
+chain('w273', 'w304');                         // c=1524
+chain('w305', [1170, 378], 'w295', 't_297');   // Gl. 180/190
+chain('t_324', [1194, 426], 'w306');           // Gl. 182 nach Weiche 306
+// Enkenbach und Verbindung nach Hochspeyer
+chain('t_enk', 's326', 'w325', [1350, 426], [1338, 438], 's333', 't_h333');
+chain('w325', [1374, 438], 's334', 't_h334');
+
+// ---------------------------------------------------------------- Beschriftungen und Flächen
+const B = (x, y, w, h) => decor.blocks.push({ x, y, w, h });
+B(864, 206, 48, 48); B(670, 240, 129, 10); B(939, 265, 69, 7); B(72, 280, 48, 8); B(670, 288, 65, 8);
+B(889, 313, 143, 7); B(829, 360, 214, 24); B(817, 384, 226, 10); B(672, 384, 120, 10); B(72, 401, 48, 7);
+B(781, 432, 155, 34); B(742, 204, 26, 14); B(1357, 108, 155, 132);
+// graue Streifen hinter den Gleisenden
+B(11, 264, 12, 32); B(11, 396, 12, 32); B(432, 240, 10, 38); B(1572, 264, 12, 32); B(1560, 402, 12, 26);
+decor.edge = { blue: [0, 325, 24, 35], green: [1573, 325, 23, 35] };
+decor.title = { x: 1129, y: 261, w: 142, h: 23, text: 'Kaiserslautern (SKL)' };
+
+const L = (x, y, text, kind = 'white', o = {}) => decor.labels.push({ x, y, text, kind, ...o });
+// Gleisnummern (weißes Schild, mittig)
+for (const [x, y, t] of [[720, 234, '- 39 -'], [720, 258, '- 40 -'], [720, 282, '- 41 -'], [720, 306, '- 42 -'], [720, 330, '- 13 -'], [744, 378, '- 45 -'],
+  [642, 450, '- 109 -'], [990, 450, '-119-'], [958, 210, '-122-'], [958, 234, '-121-'], [958, 258, '-120-'], [958, 282, '- 1 -'], [958, 306, '- 2 -'],
+  [934, 330, '- 3 -'], [934, 354, '- 4 -'], [934, 402, '- 5 -'], [850, 426, '- 8 -'], [852, 474, '- 10 -'], [275, 282, '-220-'], [272, 306, '-60-'],
+  [228, 414, '- 68 -'], [1331, 306, '-162-'], [1331, 354, '-164-'], [1247, 378, '-180-'], [1380, 378, '-190-'], [1247, 402, '-181-'], [1247, 426, '-182-']]) L(x, y, t, 'track');
+// Ortsnamen
+L(13, 306, 'Lampertsmühle', 'place'); L(13, 414, 'Pirmasens Nord', 'place'); L(38, 378, 'Galgenschanze', 'small'); L(110, 270, 'Pfaffwerk', 'small');
+L(430, 283, 'Tankstelle', 'place'); L(742, 223, 'BW', 'place'); L(362, 426, 'Abstellung', 'place'); L(1526, 312, 'Eselsfürth', 'place');
+L(1510, 444, 'Enkenbach', 'place'); L(1478, 263, 'nächstes STW Alsenz ->', 'small'); L(1466, 466, 'nächstes STW Alsenz ->', 'small');
+for (const [y, t] of [[127, 'Homburg'], [151, 'Neustadt (W)'], [175, 'Alsenz'], [199, 'Pirmasens'], [223, 'Region']]) L(1369, y, t, 'small');
+decor.legendLeds = [127, 151, 175, 199, 223];
+
+// LED-Felder (Zugnummernmelder): x, y, Breite, Höhe, Knopf-Mitte
+for (const [x, y, w, h] of [[36, 265, 60, 11], [48, 360, 72, 12], [48, 420, 60, 11], [1500, 265, 60, 11], [1462, 312, 74, 12], [1487, 361, 73, 12], [1450, 407, 61, 12]]) decor.leds.push({ x, y, w, h });
+for (const y of decor.legendLeds) decor.leds.push({ x: 1440, y: y - 6, w: 60, h: 12 });
+
+// Markierungen im Gleis: [x, y, Nummer, Seite des Schildes (l/r/''), N-Symbol (t/b/'')]
+const M = (x, y, no = '', side = '', n = '') => decor.markers.push({ x, y, no, side, n });
+M(210, 306, '213', 'l'); M(330, 306, '214', 'r', 'b'); M(486, 306, '', '', 'b'); M(306, 282, '', '', 'b'); M(222, 282, '196', 'l');
+M(258, 330, '238', 'l', 't'); M(462, 330, '242', 'l', 't'); M(774, 330, '245', 'r', 'b'); M(834, 330, '', ''); M(1146, 330, '251', 'l', 't'); M(1170, 330, '252', 'r', 'b');
+M(282, 354, '261', 'l', 't'); M(414, 354, '264', 'l', 't'); M(486, 354, '265', 'l', 'b'); M(1110, 354, '', '', 'b'); M(1146, 354, '272', 'r', 'b');
+M(1218, 354, '275', 'l', 't'); M(1254, 354, '276', 'r', 'b'); M(1290, 354, '', ''); M(1386, 354, '279', 'r', 'b');
+M(462, 378, '287', 'l', 't'); M(534, 378, '288', 'l', 'b'); M(1206, 378, '293', 'l', 't'); M(1302, 378, '294', 'r', 'b');
+M(1206, 402, '307', 'l', 't'); M(1302, 402, '308', 'r', 'b'); M(606, 426, '317', 'r', 'b'); M(522, 426, '', ''); M(1206, 426, '323', 'l', 't');
+M(534, 450, '329', 'l', 't'); M(894, 282, '', ''); M(894, 306, '', ''); M(834, 330, '', ''); M(1014, 234, '184', 'l', 'b'); M(1014, 210, '180', 'r', 'b');
+M(1230, 306, '230', 'r', 'b'); M(1278, 306, '232', 'l', ''); M(1374, 306, '233', 'r', 'b'); M(1194, 306, '', ''); M(264, 414, '', ''); M(1230, 330, '', '');
+// kleine Signalbilder ohne Taste (Vor-/Wiederholsignale)
+for (const [x, y, d] of [[53, 316, 'E'], [30, 337, 'E'], [27, 361, 'E'], [68, 390, 'E'], [338, 342, 'E'], [338, 364, 'E'], [338, 386, 'E'],
+  [1540, 296, 'E'], [1554, 321, 'W'], [1554, 344, 'W'], [1459, 364, 'E'], [1514, 424, 'E']]) decor.glyphs.push({ x, y, d });
+
+// ---------------------------------------------------------------- Ports aus der Zeichnung berechnen
+function finalize() {
+  const legs = {};
+  links.forEach(([a, b, via], i) => {
+    for (const id of [a, b]) if (!nodes[id]) throw new Error('Unbekannter Knoten ' + id + ' in Link ' + a + '–' + b);
+    const pa = [nodes[a].x, nodes[a].y], pb = [nodes[b].x, nodes[b].y];
+    const na = via.length ? via[0] : pb, nb = via.length ? via[via.length - 1] : pa;
+    const unit = (p, q) => { const d = Math.hypot(q[0] - p[0], q[1] - p[1]) || 1; return [(q[0] - p[0]) / d, (q[1] - p[1]) / d]; };
+    (legs[a] ||= []).push({ link: i, end: 0, v: unit(pa, na) });
+    (legs[b] ||= []).push({ link: i, end: 1, v: unit(pb, nb) });
+  });
+  const portOf = {};
+  const dot = (p, q) => p[0] * q[0] + p[1] * q[1];
+  for (const [id, n] of Object.entries(nodes)) {
+    const lg = legs[id] || [];
+    const set = (leg, port) => { portOf[leg.link + ':' + leg.end] = id + '.' + port; };
+    if (n.t === 'term') {
+      if (lg.length !== 1) throw new Error(`Ziel ${id} hat ${lg.length} Anschlüsse`);
+      set(lg[0], 'p');
+    } else if (n.t === 'sig') {
+      if (lg.length !== 2) throw new Error(`Signal ${id} hat ${lg.length} Anschlüsse`);
+      const key = l => (Math.abs(l.v[0]) > 0.3 ? l.v[0] : l.v[1]);
+      const [a, b] = lg.slice().sort((p, q) => key(p) - key(q));
+      set(a, 'w'); set(b, 'e');
+    } else {
+      if (lg.length !== 3) throw new Error(`Weiche ${id} hat ${lg.length} Anschlüsse: ${lg.map(l => links[l.link].slice(0, 2)).join(' | ')}`);
+      const stem = lg.find(l => lg.every(o => o === l || dot(l.v, o.v) < 0));
+      if (!stem) throw new Error(`Weiche ${id}: keine Spitze erkennbar`);
+      const rest = lg.filter(l => l !== stem).sort((p, q) => dot(stem.v, p.v) - dot(stem.v, q.v));
+      set(stem, 'stem'); set(rest[0], 'str'); set(rest[1], 'br');
+    }
+  }
+  const used = new Set();
+  const edges = links.map(([a, b, via], i) => {
+    let id = `${a}_${b}`;
+    while (used.has(id)) id += "'";
+    used.add(id);
+    return via.length ? [id, portOf[i + ':0'], portOf[i + ':1'], via] : [id, portOf[i + ':0'], portOf[i + ':1']];
+  });
+  return edges;
+}
+
+const data = { name: 'Kaiserslautern Hbf (SKL)', nodes, edges: finalize(), decor };
+
+// ---------------------------------------------------------------- Betriebskonfiguration (Fahrplan / Zufallsbetrieb)
+// Fahrplangleis → w = Signal/Ziel am Westende, e = Signal/Ziel am Ostende
+data.config = {
+  gleise: {
+    '1': { name: '1', w: 's204', e: 's205' },
+    '2': { name: '2', w: 's224', e: 's225' },
+    '3': { name: '3', w: 's247', e: 's248' },
+    '4': { name: '4', w: 's268', e: 's269' },
+    '5': { name: '5', w: 's301', e: 's302' },
+    '8': { name: '8', w: 's319', e: 's320' },
+    '10': { name: '10', w: 's335', e: 's336' },
+    '39': { name: '39', w: 's181', e: 't_182' },
+    '40': { name: '40', w: 's187', e: 's188' },
+    '41': { name: '41', w: 's200', e: 's201' },
+    '42': { name: '42', w: 's221', e: 's222' },
+    '45': { name: '45', w: 's291', e: 't_292' },
+    '120': { name: '120', w: 't_190', e: 's191' },
+  },
+  // Richtungsgruppen: side = Seite, von der die Züge kommen bzw. in die sie fahren
+  gruppen: {
+    pir: { side: 'W', name: 'Pirmasens', entries: ['s281'], terms: ['t_pir'] },
+    laut: { side: 'W', name: 'Lauterecken (Lampertsmühle)', entries: ['s211'], terms: ['t_lamp'] },
+    hb: { side: 'W', name: 'Homburg / Landstuhl', entries: ['s235', 's258'], terms: ['t_hb1', 't_hb2'] },
+    lu: { side: 'E', name: 'Hochspeyer / Neustadt', entries: ['s257', 's280'], terms: ['t_lu1', 't_lu2'] },
+    enk: { side: 'E', name: 'Enkenbach / Bad Münster', entries: ['s326', 's234'], terms: ['t_enk', 't_esel'] },
+  },
+};
+export default data;
