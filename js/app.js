@@ -1,6 +1,6 @@
 import { Interlocking } from './engine.js';
-import data from './data-skl-west.js';
-import { Betrieb, LEVELS } from './betrieb.js';
+import data from './data-skl.js';
+import { Betrieb, LEVELS, nextHop } from './betrieb.js';
 
 const SY = 1.4, Y0 = 560;                       // vertikale Streckung des Plans
 const P = (x, y) => [x, Y0 + (y - Y0) * SY];
@@ -54,15 +54,19 @@ function legVec(swId, port) {
 }
 const num = (n, w = 5) => String(n).padStart(w, '0');
 
+const GR = '#b4b7bd', YE = '#facc15', RD = '#e11d1d', BK = '#101114';
 function draw() {
   const out = [];
+  // Gleisbänder (schwarz) mit Gleisfeldmelder (Oval)
   for (const e of Object.values(il.edges)) {
     const occ = il.isOccupied(e.id), lk = !!il.lock[e.id];
-    const col = occ ? C.occ : lk ? C.route : C.free;
-    out.push(`<polyline points="${pl(e)}" fill="none" stroke="${col}" stroke-width="${occ || lk ? 4.4 : 3.2}" stroke-linecap="round" stroke-linejoin="round"/>`);
-    out.push(`<polyline data-k="edge" data-id="${e.id}" points="${pl(e)}" fill="none" stroke="transparent" stroke-width="16" stroke-linecap="round"/>`);
+    const d = 'M' + pts(e).map(p => p.join(',')).join(' L');
+    out.push(`<path d="${d}" fill="none" stroke="${BK}" stroke-width="7" stroke-linecap="butt" stroke-linejoin="round"/>`);
+    const col = occ ? RD : lk ? YE : GR;
+    out.push(`<path d="${d}" pathLength="100" fill="none" stroke="${col}" stroke-width="3.6" stroke-linecap="round" stroke-dasharray="64 100" stroke-dashoffset="-18"/>`);
+    out.push(`<path data-k="edge" data-id="${e.id}" d="${d}" fill="none" stroke="transparent" stroke-width="18"/>`);
   }
-  // Weichen
+  // Weichen (Bild 9): Spitzentaste, Stellungsmelder, Verschluss-/Sperrmelder, Bezeichnungsschild
   for (const n of Object.values(il.nodes)) {
     if (n.t !== 'sw') continue;
     const s = il.sw[n.id];
@@ -70,46 +74,46 @@ function draw() {
     const occ = il.isOccupied(n.id), lk = !!il.lock[n.id], fl = !!il.flankLock[n.id];
     const moving = s.target !== s.pos;
     const show = occ || lk || fl || s.sperre || moving || il.ausleuchtung || s.aufgefahren;
-    const lc = occ ? C.occ : C.ye;
-    if (show) {
-      const draw1 = (port, pulse) => {
-        const [vx, vy] = legVec(n.id, port);
-        out.push(`<line x1="${x}" y1="${y}" x2="${x + vx * 11}" y2="${y + vy * 11}" stroke="${lc}" stroke-width="3.2" stroke-linecap="round" ${pulse ? 'class="pulse"' : ''}/>`);
-      };
-      if (s.aufgefahren) { draw1('str', true); draw1('br', true); }
-      else if (moving) { draw1('stem', false); draw1(s.target, true); }
-      else { draw1('stem', false); draw1(s.pos, false); }
-    }
-    const spitze = occ ? C.occ : lk ? C.ye : C.bg;
-    const ring = s.stoerMelder ? '#ef4444' : '#566274';
-    out.push(`<circle cx="${x}" cy="${y}" r="5.4" fill="${spitze}" stroke="${ring}" stroke-width="${s.stoerMelder ? 2.4 : 1.2}" ${s.stoerMelder ? 'class="pulse"' : ''}/>`);
-    if (lk || fl) out.push(`<rect x="${x + 5}" y="${y + 5}" width="5" height="5" fill="${C.ye}"/>`);
-    if (s.sperre) out.push(`<circle cx="${x - 7}" cy="${y + 8}" r="2.8" fill="#ef4444"/>`);
-    out.push(`<text x="${x}" y="${y + (n.no === '047' || n.no === '044' ? 16 : -9)}" fill="${s.stoerMelder ? '#f87171' : '#9fb0c3'}" font-size="8.5" text-anchor="middle" font-weight="600">${n.no}</text>`);
-    out.push(`<circle data-k="sw" data-id="${n.id}" cx="${x}" cy="${y}" r="12" fill="transparent"/>`);
+    const oval = (port, lit, pulse) => {
+      const [vx, vy] = legVec(n.id, port);
+      const c = !lit ? GR : occ ? RD : s.sperre ? YE : YE;
+      out.push(`<line x1="${x + vx * 8}" y1="${y + vy * 8}" x2="${x + vx * 19}" y2="${y + vy * 19}" stroke="${c}" stroke-width="4.2" stroke-linecap="round" ${pulse ? 'class="pulse"' : ''}/>`);
+    };
+    const active = moving ? s.target : s.pos;
+    oval('stem', show, false);
+    oval('str', show && (s.aufgefahren || active === 'str'), moving && active === 'str' || s.aufgefahren);
+    oval('br', show && (s.aufgefahren || active === 'br'), moving && active === 'br' || s.aufgefahren);
+    const hot = s.stoerMelder;
+    out.push(`<circle cx="${x}" cy="${y}" r="6.2" fill="${BK}" stroke="${hot ? RD : '#f4f4f4'}" stroke-width="${hot ? 2.6 : 1.4}" ${hot ? 'class="pulse"' : ''}/>`);
+    out.push(`<circle cx="${x - 4.5}" cy="${y + 11}" r="2.7" fill="${lk || fl ? YE : GR}" stroke="#555" stroke-width=".7" ${s.target !== s.pos && lk ? 'class="pulse"' : ''}/>`);
+    out.push(`<circle cx="${x + 4.5}" cy="${y + 11}" r="2.7" fill="${s.sperre ? RD : GR}" stroke="#555" stroke-width=".7"/>`);
+    out.push(`<rect x="${x - 9}" y="${y + 15}" width="18" height="9" fill="#fff" stroke="#333" stroke-width=".8"/><text x="${x}" y="${y + 22.4}" fill="#111" font-size="7.4" font-weight="700" text-anchor="middle">${n.no.replace(/^0+/, '')}</text>`);
+    out.push(`<circle data-k="sw" data-id="${n.id}" cx="${x}" cy="${y + 6}" r="15" fill="transparent"/>`);
   }
-  // Signale
+  // Signale (Bild 46, Sp Dr L60): Zugstraßentaste mit Haltmelder, Signalsymbol, Namensschild, Festlegemelder
   const tgt = new Set(ui.targets);
   for (const n of Object.values(il.nodes)) {
     if (n.t !== 'sig') continue;
     const sg = il.sig[n.id];
     const r = il.routeOf(n.id);
     const [x, y] = P(n.x, n.y);
-    const sd = n.dir === 'E' ? 1 : -1;
-    const cy = y + sd * 15;
+    const E = n.dir === 'E';
     const open = sg.aspect !== 'Hp0';
-    const fill = open && sg.aspect !== 'Zs1' ? '#22c55e' : '#ef4444';
     const sel = ui.start === n.id || (ui.pending && ui.pending.start === n.id);
-    out.push(`<line x1="${x}" y1="${y}" x2="${x}" y2="${y + sd * 9}" stroke="#9aa6b5" stroke-width="2"/>`);
-    out.push(`<line x1="${x - 5}" y1="${y + sd * 9}" x2="${x + 5}" y2="${y + sd * 9}" stroke="#9aa6b5" stroke-width="2"/>`);
-    if (sel) out.push(`<circle cx="${x}" cy="${cy}" r="11" fill="none" stroke="#a855f7" stroke-width="2.4" class="pulse"/>`);
-    if (sg.sperre) out.push(`<circle cx="${x}" cy="${cy}" r="9.5" fill="none" stroke="#facc15" stroke-width="2"/>`);
-    out.push(`<circle cx="${x}" cy="${cy}" r="6" fill="${fill}" stroke="${sg.disturbed ? '#f87171' : '#0b0f14'}" stroke-width="${sg.disturbed ? 2.2 : 1}" ${sg.disturbed ? 'class="pulse"' : ''}/>`);
-    if (sg.aspect === 'Zs1') out.push(`<path d="M${x - 4},${cy + 3} L${x + 4},${cy + 3} L${x},${cy - 4} Z" fill="#fff" class="pulse"/>`);
-    // Festlegemelder (gelbes Quadrat neben der Starttaste)
-    if (r && r.ffm) out.push(`<rect x="${x + (n.dir === 'E' ? 8 : -14)}" y="${cy - 3.5}" width="7" height="7" fill="${C.ye}"/>`);
-    out.push(`<text x="${x + (n.dir === 'E' ? -9 : 9)}" y="${cy + 3}" fill="#c8d3e0" font-size="9" font-weight="700" text-anchor="${n.dir === 'E' ? 'end' : 'start'}">${n.name}</text>`);
-    out.push(`<circle data-k="sig" data-id="${n.id}" cx="${x}" cy="${cy}" r="14" fill="transparent"/>`);
+    const by = y + 15;
+    const bx = E ? x - 26 : x + 4;
+    out.push(`<rect x="${bx}" y="${by - 5.5}" width="22" height="11" rx="4" fill="${BK}"/>`);
+    out.push(`<circle cx="${E ? bx + 5 : bx + 17}" cy="${by}" r="3.1" fill="${sg.sperre ? YE : '#777'}"/>`);
+    const lamp = sg.aspect === 'Zs1' ? '#ffffff' : open ? '#22c55e' : '#3a3a3a';
+    out.push(`<circle cx="${E ? bx + 16.5 : bx + 5.5}" cy="${by}" r="3.9" fill="${lamp}" ${sg.aspect === 'Zs1' ? 'class="pulse"' : ''}/>`);
+    if (sg.disturbed) out.push(`<rect x="${bx - 2}" y="${by - 7.5}" width="26" height="15" rx="5" fill="none" stroke="${RD}" stroke-width="2" class="pulse"/>`);
+    out.push(`<line x1="${x}" y1="${y}" x2="${x}" y2="${by}" stroke="#555" stroke-width="1.2"/>`);
+    // Zugstraßentaste mit Haltmelder (rot bei Halt)
+    out.push(`<circle cx="${x}" cy="${y}" r="7.4" fill="${open ? '#cfd2d6' : RD}" stroke="${sel ? '#9333ea' : '#6b7078'}" stroke-width="${sel ? 3 : 1.6}" ${sel ? 'class="pulse"' : ''}/>`);
+    if (r && r.ffm) out.push(`<rect x="${x + (E ? 6 : -14)}" y="${y - 19}" width="8" height="8" fill="${YE}" stroke="#555" stroke-width=".8"/>`);
+    const w = n.name.length * 6 + 8;
+    out.push(`<rect x="${E ? bx : bx + 22 - w}" y="${by + 8}" width="${w}" height="10" fill="#fff" stroke="#333" stroke-width=".8"/><text x="${(E ? bx : bx + 22 - w) + w / 2}" y="${by + 16}" fill="#111" font-size="8" font-weight="700" text-anchor="middle">${n.name}</text>`);
+    out.push(`<circle data-k="sig" data-id="${n.id}" cx="${x}" cy="${y + 5}" r="16" fill="transparent"/>`);
   }
   // Zieltasten
   for (const n of Object.values(il.nodes)) {
@@ -117,11 +121,12 @@ function draw() {
     const [x, y] = P(n.x, n.y);
     const valid = tgt.has(n.id);
     const dim = tgt.size > 0 && !valid;
-    const col = valid ? '#c084fc' : '#556070';
     const w = n.side === 'E' ? 1 : -1;
-    out.push(`<path d="M${x},${y - 6} L${x + w * 9},${y} L${x},${y + 6} Z" fill="${valid ? col : 'none'}" stroke="${col}" stroke-width="1.6" ${valid ? 'class="pulse"' : ''} opacity="${dim ? .35 : 1}"/>`);
-    out.push(`<text x="${x + (n.side === 'E' ? 14 : -4)}" y="${n.side === 'E' ? y + 3.5 : y - 9}" fill="${valid ? '#d8b4fe' : '#8b98a8'}" font-size="${n.side === 'E' ? 9.5 : 8.5}" font-weight="${valid ? 700 : 500}" opacity="${dim ? .5 : 1}">${esc(n.side === 'E' ? n.name : n.label)}</text>`);
-    out.push(`<rect data-k="term" data-id="${n.id}" x="${n.side === 'E' ? x - 6 : x - 14}" y="${y - 12}" width="${n.side === 'E' ? 60 : 28}" height="24" fill="transparent"/>`);
+    out.push(`<line x1="${x}" y1="${y - 9}" x2="${x}" y2="${y + 9}" stroke="${BK}" stroke-width="3"/>`);
+    out.push(`<circle cx="${x + w * 10}" cy="${y}" r="6.4" fill="${valid ? '#c084fc' : '#cfd2d6'}" stroke="${valid ? '#7e22ce' : '#6b7078'}" stroke-width="${valid ? 2.6 : 1.4}" ${valid ? 'class="pulse"' : ''} opacity="${dim ? .45 : 1}"/>`);
+    const txt = n.side === 'E' ? n.name : n.label;
+    out.push(`<text x="${x + (n.side === 'E' ? 22 : -4)}" y="${n.side === 'E' ? y + 3.5 : y - 11}" fill="#222" font-size="${n.side === 'E' ? 9.5 : 8.5}" font-weight="${valid ? 800 : 600}" opacity="${dim ? .5 : 1}">${esc(txt)}</text>`);
+    out.push(`<rect data-k="term" data-id="${n.id}" x="${n.side === 'E' ? x - 4 : x - 22}" y="${y - 12}" width="${n.side === 'E' ? 64 : 30}" height="24" fill="transparent"/>`);
   }
   // Züge
   for (const t of il.trains) {
@@ -133,7 +138,7 @@ function draw() {
     } else [x, y] = P(il.nodes[c.id].x, il.nodes[c.id].y);
     const col = t.state === 'done' ? '#94a3b8' : t.state === 'halt' ? '#f59e0b' : '#38bdf8';
     const lab = t.no || t.id, hw = Math.max(13, String(lab).length * 4.2 + 5);
-    out.push(`<g data-k="train" data-id="${t.id}"><rect x="${x - hw}" y="${y - 6}" width="${hw * 2}" height="12" rx="3" fill="${col}" stroke="#0b0f14" stroke-width="1.5"/><text x="${x}" y="${y + 3.5}" font-size="9" font-weight="800" text-anchor="middle" fill="#06222f">${lab}</text></g>`);
+    out.push(`<g data-k="train" data-id="${t.id}"><rect x="${x - hw}" y="${y - 17}" width="${hw * 2}" height="11" rx="3" fill="${col}" stroke="#0b0f14" stroke-width="1.2"/><text x="${x}" y="${y - 9}" font-size="8.6" font-weight="800" text-anchor="middle" fill="#06222f">${lab}</text></g>`);
   }
   svg.innerHTML = out.join('');
   drawPanel();
@@ -151,7 +156,7 @@ function drawPanel() {
     L('LK', il.laufkette ? 'yellow' : '') + L('Ausl', il.ausleuchtung ? 'yellow' : '');
   const z = il.zaehler;
   document.getElementById('zaehler').innerHTML = [['FHZ', z.FHZ], ['EAZ', z.EAZ], ['GAZ', z.GAZ], ['WHZ', z.WHZ], ['WAZ', z.WAZ], ['ErsZ', z.ErsZ]]
-    .map(([k, v]) => `<div><span>${k}</span> <b>${num(v)}</b></div>`).join('');
+    .map(([k, v]) => `<div class="zw"><i class="knob"></i><span class="cnt">${num(v).split('').map(d => `<b>${d}</b>`).join('')}</span><em>${k}</em></div>`).join('');
   const rs = il.routes.map(r => {
     const sg = il.sig[r.start];
     const open = sg.aspect !== 'Hp0';
@@ -168,7 +173,12 @@ function drawPanel() {
   document.getElementById('nstp-disp').textContent = numBuf.padEnd(4, '–');
   document.getElementById('btn-betrieb').textContent = 'Betrieb: ' + LEVELS[bt.level].name;
   document.getElementById('score').textContent = `✔ ${bt.score.ok} · ✖ ${bt.score.wrong} · Verspätung ${bt.score.delay.toFixed(1)} min`;
-  const zl = il.trains.filter(t => t.kind).map(t => `<div><b>${t.no}</b> → ${esc(il.nodes[t.dest].name)}${t.state === 'halt' ? ' <span class="h">wartet</span>' : t.state === 'done' ? ' (Halt)' : ''}</div>`);
+  const zl = il.trains.filter(t => t.kind).map(t => {
+    const nd = t.cur.kind === 'edge' ? il.nodes[t.cur.to.node] : null;
+    let via = '';
+    if (nd && nd.t === 'sig' && t.state === 'halt' && !il.sig[nd.id].route && nd.id !== t.dest) { const h = nextHop(il, nd.id, t.dest); if (h && h !== t.dest) via = ` · zuerst ${esc(il.nodes[h].name)}`; }
+    return `<div><b>${t.no}</b> → ${esc(il.nodes[t.dest].name)}${t.state === 'halt' ? ' <span class="h">wartet</span>' : t.state === 'done' ? ' (Halt)' : ''}${via}</div>`;
+  });
   document.getElementById('zugliste').innerHTML = zl.length ? zl.join('') : '–';
 }
 
@@ -285,8 +295,9 @@ document.getElementById('btn-window').addEventListener('click', e => {
 });
 
 // ---------- Zoom / Pan / Tap ----------
-const VB0 = { x: 30, y: 566, w: 1110, h: 470 };
-let vb = { ...VB0 };
+const VIEWS = { west: { x: 30, y: 566, w: 1110, h: 470 }, ost: { x: 1030, y: 556, w: 960, h: 520 }, all: { x: 30, y: 556, w: 1960, h: 520 } };
+const VB0 = { ...VIEWS.all, w: 2100 };
+let vb = { ...VIEWS.west };
 const applyVB = () => svg.setAttribute('viewBox', `${vb.x} ${vb.y} ${vb.w} ${vb.h}`);
 const ptrs = new Map();
 let gesture = null;
@@ -340,6 +351,7 @@ svg.addEventListener('wheel', e => {
 }, { passive: false });
 svg.addEventListener('dblclick', () => { vb = { ...VB0 }; applyVB(); });
 
+document.querySelectorAll('[data-view]').forEach(b => b.addEventListener('click', () => { vb = { ...VIEWS[b.dataset.view] }; applyVB(); }));
 // ---------- Start ----------
 reset();
 applyVB();

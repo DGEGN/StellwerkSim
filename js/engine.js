@@ -132,7 +132,7 @@ export class Interlocking {
   }
 
   validTargets(startSig) {
-    return Object.values(this.nodes).filter(n => n.t === 'term' && this.findPath(startSig, n.id)).map(n => n.id);
+    return Object.values(this.nodes).filter(n => (n.t === 'term' || (n.t === 'sig' && n.zt && n.id !== startSig)) && this.findPath(startSig, n.id)).map(n => n.id);
   }
 
   // Flankenschutz-Bedarf
@@ -456,7 +456,8 @@ export class Interlocking {
         if (this.lock[r.elems[last]] === r.id) delete this.lock[r.elems[last]];
       }
       const lastTrain = this.trains.find(t => t.id === this.occ[r.elems[last]]);
-      if (r.progress === last && lastTrain && lastTrain.state === 'done') { this._dissolve(r, true); continue; }
+      const atTarget = lastTrain && lastTrain.cur.kind === 'edge' && lastTrain.cur.to.node === r.target;
+      if (r.progress === last && lastTrain && (lastTrain.state === 'done' || (lastTrain.state === 'halt' && atTarget))) { this._dissolve(r, true); continue; }
       if (!r.elems.some(el => this.lock[el] === r.id)) this._dissolve(r, false);
     }
   }
