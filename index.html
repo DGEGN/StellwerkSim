@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<meta name="theme-color" content="#0b0f14">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>Spdr L60 – Kaiserslautern Hbf (Westkopf)</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon.svg">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header>
+  <div class="title"><b>Spdr&nbsp;L60</b> · Kaiserslautern Hbf <span class="sub">Westkopf · Version&nbsp;1</span></div>
+  <div class="hdr-right">
+    <span id="clock">00:00</span>
+    <button id="btn-speed" class="small" title="Simulationsgeschwindigkeit">1×</button>
+    <button id="btn-reset" class="small">Neustart</button>
+    <button id="btn-help" class="small">Hilfe</button>
+  </div>
+</header>
+
+<main>
+  <svg id="plan" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid meet"></svg>
+  <div id="legend">Tipp: Signal antippen (Start), dann leuchtendes Ziel antippen. Zwei Finger = zoomen, ein Finger = verschieben.</div>
+</main>
+
+<section id="panel">
+  <div id="meldung" class="meldung">Bereit.</div>
+  <div class="keys">
+    <div class="group">
+      <span class="gl">Hilfsbedienung</span>
+      <button data-mode="FHT" title="Fahrstraßen-Hilfsauflösetaste">FHT<small>Hilfsauflösen</small></button>
+      <button data-mode="SHT" title="Signal-Haltfalltaste">SHT<small>Signal Halt</small></button>
+      <button data-mode="EGT" title="Ersatzsignaltaste">EGT<small>Ersatzsignal</small></button>
+      <button data-mode="WT" title="Weichen-Einzelumstellung">WT<small>Weiche umstellen</small></button>
+    </div>
+    <div class="group">
+      <span class="gl">Störung auslösen</span>
+      <button data-mode="STW">Weiche</button>
+      <button data-mode="STS">Signal</button>
+      <button data-mode="STG">Gleis<small>Freimeldung</small></button>
+    </div>
+    <div class="group">
+      <span class="gl">Züge</span>
+      <button id="btn-dir" class="dir">→ Ost</button>
+      <button data-mode="ZUG">Zug einsetzen</button>
+      <button data-mode="WENDEN">Zug wenden</button>
+      <button data-mode="ENTF">Zug entfernen</button>
+    </div>
+    <div class="group grow">
+      <span class="gl">Fahrstraßen</span>
+      <div id="routes">–</div>
+    </div>
+  </div>
+</section>
+
+<dialog id="help">
+  <h2>Bedienung</h2>
+  <p><b>Fahrstraße einstellen:</b> Startsignal antippen (z.&nbsp;B. D, CC, C, A bei Einfahrt, P39–P105 bei Ausfahrt). Mögliche Ziele leuchten blau, dann Ziel antippen. Weichen laufen um, das Signal öffnet, sobald die Fahrstraße festgelegt ist.</p>
+  <p><b>Züge:</b> „Zug einsetzen“, Fahrtrichtung wählen und einen Gleisabschnitt antippen. Der Zug fährt los, sobald das Signal Fahrt zeigt. Am Ziel stehen bleibt er stehen; mit „Zug wenden“ kann er in Gegenrichtung ausfahren.</p>
+  <p><b>Gleisbild:</b> grau = frei · weiß = Fahrstraße festgelegt · rot = besetzt. Signal grün = Hp 1, grün/gelb = Hp 2 (Abzweig), weißes Licht = Zs 1.</p>
+  <p><b>Hilfsbedienungen:</b> FHT löst eine Fahrstraße nach Wartezeit auf (Signal muss auf Halt sein, ggf. erst SHT). EGT gibt Ersatzsignal Zs&nbsp;1 bei gestörtem Signal. WT stellt eine freie, nicht festgelegte Weiche einzeln um. Unter „Störung auslösen“ lassen sich Weichen-, Signal- und Gleisfreimeldestörungen erzeugen.</p>
+  <p class="warn"><b>Hinweis:</b> Das Gleisbild wurde aus dem Plan „Serviceeinrichtungen Kaiserslautern Hbf“ übertragen und ist nicht amtlich geprüft. Fahrstraßen und Flankenschutz werden aus der Topologie berechnet, nicht aus der echten Fahrstraßentabelle. Ortsstellbereiche, Werk und Ostkopf fehlen in Version 1.</p>
+  <form method="dialog"><button>Schließen</button></form>
+</dialog>
+
+<script type="module" src="js/app.js"></script>
+</body>
+</html>

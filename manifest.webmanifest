@@ -1,0 +1,10 @@
+{
+  "name": "Spdr L60 – Kaiserslautern Hbf",
+  "short_name": "Spdr L60",
+  "start_url": "./",
+  "display": "fullscreen",
+  "orientation": "landscape",
+  "background_color": "#0b0f14",
+  "theme_color": "#0b0f14",
+  "icons": [{ "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }]
+}
