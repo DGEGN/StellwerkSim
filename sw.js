@@ -1,5 +1,5 @@
-const CACHE = 'spdr-l60-v5';
-const FILES = ['./', 'index.html', 'style.css', 'js/app.js', 'js/engine.js', 'js/data-skl.js', 'js/betrieb.js', 'js/fahrplanbetrieb.js', 'js/fahrplan.js', 'manifest.webmanifest', 'icon.svg'];
+const CACHE = 'spdr-l60-v6';
+const FILES = ['./', 'index.html', 'style.css', 'js/app.js', 'js/engine.js', 'js/data-skl.js', 'js/render.js', 'js/config.js', 'js/betrieb.js', 'js/fahrplanbetrieb.js', 'js/fahrplan.js', 'manifest.webmanifest', 'icon.svg'];
 self.addEventListener('install', e => e.waitUntil(caches.open(CACHE).then(c => c.addAll(FILES)).then(() => self.skipWaiting())));
 self.addEventListener('activate', e => e.waitUntil(caches.keys().then(ks => Promise.all(ks.filter(k => k !== CACHE).map(k => caches.delete(k)))).then(() => self.clients.claim())));
 self.addEventListener('fetch', e => {

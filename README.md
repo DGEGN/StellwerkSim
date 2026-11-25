@@ -1,4 +1,4 @@
-# Sp Dr 60 – Kaiserslautern Hbf (Westkopf), Version 4
+# Sp Dr 60 – Kaiserslautern Hbf (Gesamtanlage nach Stelltischbild), Version 6
 
 Tablet-Simulation eines Spurplan-Drucktastenstellwerks (Sp Dr 60) als statische Web-App.
 Bedienlogik und Melderzustände orientieren sich an der Ril 482.9009 (das Dokument selbst ist nicht Teil des Repositories).
