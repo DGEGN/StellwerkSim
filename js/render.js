@@ -172,12 +172,12 @@ export function renderDynamic(il, ui) {
     if (!n.nolamp && !n.vertical) {
       const rx = n.dir === 'E' ? n.x - 16 : n.x + 17, ry = n.dir === 'E' ? n.y + 9 : n.y - 9;
       const selR = ui.start === n.id && ui.kind === 'rangier';
-      const rTgt = tgt.has(n.id) && ui.kind === 'rangier';
-      out.push(`<rect x="${rx - 3.5}" y="${ry - 3.5}" width="7" height="7" fill="${selR || rTgt ? '#d9b8ff' : '#9a9a9a'}" stroke="${selR || rTgt ? '#a855f7' : '#111'}" stroke-width="${selR || rTgt ? 2.2 : 1.4}"${selR || rTgt ? ' class="pulse"' : ''}/>`);
-      out.push(`<circle data-k="rsig" data-id="${n.id}" cx="${rx}" cy="${ry}" r="9" fill="transparent"/>`);
+      const rTgt = (ui.rtargets || []).includes(n.id) && ui.start && ui.start !== n.id;
+      out.push(`<rect x="${rx - 4.5}" y="${ry - 4.5}" width="9" height="9" fill="${selR || rTgt ? '#d9b8ff' : '#9a9a9a'}" stroke="${selR || rTgt ? '#a855f7' : '#111'}" stroke-width="${selR || rTgt ? 2.2 : 1.4}"${selR || rTgt ? ' class="pulse"' : ''}/>`);
+      out.push(`<circle data-k="rsig" data-id="${n.id}" cx="${rx}" cy="${ry}" r="11" fill="transparent"/>`);
     }
     if (r && r.ffm) out.push(sq(n.x + 8, n.y - 9, C_LOCK, 6));
-    out.push(`<circle data-k="sig" data-id="${n.id}" cx="${n.x}" cy="${n.y + (n.vertical ? 0 : n.dir === 'E' ? 3 : -3)}" r="9" fill="transparent"/>`);
+    out.push(`<circle data-k="sig" data-id="${n.id}" cx="${n.x}" cy="${n.y + (n.vertical ? 0 : n.dir === 'E' ? 3 : -3)}" r="8" fill="transparent"/>`);
   }
   // Züge: Balken entlang des Gleises, passt zwischen die Signale
   const along = (pts, d0, d1) => {

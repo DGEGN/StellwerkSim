@@ -97,7 +97,7 @@ function drawPanel() {
 
 // ---------- Bedienung ----------
 const deadline = () => windowSec ? now() + windowSec * 1000 : Infinity;
-function clearPending() { ui.pending = null; ui.start = null; ui.kind = 'zug'; ui.targets = []; }
+function clearPending() { ui.pending = null; ui.start = null; ui.kind = 'zug'; ui.targets = []; ui.rtargets = []; }
 
 function pressKey(key) {
   if (ui.pending && ui.pending.key === key) { clearPending(); draw(); return; }
@@ -170,13 +170,23 @@ function tap(k, id) {
     return;
   }
   const kind = k === 'rsig' ? 'rangier' : 'zug';
-  if (ui.start && (k === 'term' || k === 'sig' || k === 'rsig') && id !== ui.start && ui.targets.includes(id) && (k === 'term' || (ui.kind === 'rangier' ? (k === 'rsig' || k === 'sig') : k === 'sig'))) {
+  const isT = ui.start && id !== ui.start && ui.targets.includes(id) && (k === 'term' || k === 'sig' || (k === 'rsig' && ui.kind === 'rangier'));
+  const isR = ui.start && id !== ui.start && k === 'rsig' && (ui.rtargets || []).includes(id);
+  if (isR) {
+    il.request(ui.start, id, 'rangier');
+    clearPending();
+  } else if (isT) {
     il.request(ui.start, id, ui.kind);
     clearPending();
   } else if (k === 'sig' || k === 'rsig') {
     if (ui.start === id && ui.kind === kind) { clearPending(); }
     else if (il.sig[id].route) il.msg(`Signal ${il.nodes[id].name}: Fahrstraße bereits eingestellt`, 'warn');
-    else { ui.start = id; ui.kind = kind; ui.startUntil = deadline(); ui.targets = il.validTargets(id, kind); il.msg(`${kind === 'rangier' ? 'Rangiertaste' : 'Zugstraßentaste'} ${il.nodes[id].name}: Zieltaste bedienen`); }
+    else {
+      ui.start = id; ui.kind = kind; ui.startUntil = deadline();
+      ui.rtargets = il.validTargets(id, 'rangier');
+      ui.targets = kind === 'rangier' ? ui.rtargets : il.validTargets(id);
+      il.msg(`${kind === 'rangier' ? 'Rangiertaste' : 'Zugstraßentaste'} ${il.nodes[id].name}: Zieltaste bedienen (rot = Zugstraße, grau = Rangierstraße)`);
+    }
   } else if (ui.start) clearPending();
   draw();
 }
