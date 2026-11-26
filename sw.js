@@ -1,4 +1,4 @@
-const CACHE = 'spdr-l60-v7';
+const CACHE = 'spdr-l60-v8';
 const FILES = ['./', 'index.html', 'style.css', 'js/app.js', 'js/engine.js', 'js/data-skl.js', 'js/render.js', 'js/config.js', 'js/betrieb.js', 'js/fahrplanbetrieb.js', 'js/fahrplan.js', 'manifest.webmanifest', 'icon.svg'];
 self.addEventListener('install', e => e.waitUntil(caches.open(CACHE).then(c => c.addAll(FILES)).then(() => self.skipWaiting())));
 self.addEventListener('activate', e => e.waitUntil(caches.keys().then(ks => Promise.all(ks.filter(k => k !== CACHE).map(k => caches.delete(k)))).then(() => self.clients.claim())));
